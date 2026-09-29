@@ -1,0 +1,165 @@
+{
+  "name": "Emerald 绿宝石",
+  "short": "emerald",
+  "description": "基于 Vue 3 + Tailwind CSS 构建的 Emerald 风格主题，支持 3D 地球与实时监控",
+  "version": "1.0.0",
+  "author": "binaryu / Tokinx",
+  "url": "https://github.com/binaryu/monitor-theme-emerald",
+  "config": [
+    { "type": "title", "label": "基础设置" },
+    {
+      "key": "earthViewMode",
+      "type": "select",
+      "label": "头部展示模式",
+      "default": "earth",
+      "help": "头部地球展示模式",
+      "options": [
+        { "value": "earth", "label": "自转地球" },
+        { "value": "earth-stop", "label": "静止地球" },
+        { "value": "maps", "label": "点状地图" },
+        { "value": "cards", "label": "仅显示卡片" },
+        { "value": "hide", "label": "隐藏头部" }
+      ]
+    },
+    {
+      "key": "defaultViewMode",
+      "type": "select",
+      "label": "默认视图模式",
+      "default": "card",
+      "help": "节点列表的默认显示模式",
+      "options": [
+        { "value": "card", "label": "卡片模式" },
+        { "value": "list", "label": "列表模式" }
+      ]
+    },
+    {
+      "key": "visitorInfoCardEnabled",
+      "type": "boolean",
+      "label": "显示访客信息卡片",
+      "default": true,
+      "help": "显示访客来源、设备和浏览器信息卡片"
+    },
+    {
+      "key": "offlineNodesLast",
+      "type": "boolean",
+      "label": "离线节点后置",
+      "default": false,
+      "help": "开启后离线节点默认显示到所有节点最后"
+    },
+    { "type": "title", "label": "公告设置" },
+    {
+      "key": "alertEnabled",
+      "type": "boolean",
+      "label": "启用公告",
+      "default": false,
+      "help": "在首页顶部显示自定义公告"
+    },
+    {
+      "key": "alertTitle",
+      "type": "string",
+      "label": "公告标题",
+      "default": "",
+      "help": "公告标题内容"
+    },
+    {
+      "key": "alertContent",
+      "type": "text",
+      "label": "公告内容",
+      "default": "",
+      "help": "公告的详细内容（支持 Markdown）"
+    },
+    { "type": "title", "label": "备案设置" },
+    {
+      "key": "icpEnabled",
+      "type": "boolean",
+      "label": "显示 ICP 备案",
+      "default": false,
+      "help": "在页脚显示网站 ICP 备案号"
+    },
+    {
+      "key": "icpNumber",
+      "type": "string",
+      "label": "ICP 备案号",
+      "default": "",
+      "help": "网站备案号（如：京ICP备12345678号）"
+    },
+    {
+      "key": "icpUrl",
+      "type": "string",
+      "label": "ICP 跳转链接",
+      "default": "https://beian.miit.gov.cn/",
+      "help": "点击备案号跳转的链接"
+    },
+    {
+      "key": "policeEnabled",
+      "type": "boolean",
+      "label": "显示公安备案",
+      "default": false,
+      "help": "在页脚显示公安备案信息"
+    },
+    {
+      "key": "policeNumber",
+      "type": "string",
+      "label": "公安备案号",
+      "default": "",
+      "help": "公安备案号（如：京公网安备 11010502000000号）"
+    },
+    {
+      "key": "policeUrl",
+      "type": "string",
+      "label": "公安备案链接",
+      "default": "",
+      "help": "点击公安备案号跳转的链接"
+    },
+    { "type": "title", "label": "自定义背景" },
+    {
+      "key": "backgroundEnabled",
+      "type": "boolean",
+      "label": "启用自定义背景",
+      "default": false,
+      "help": "启用自定义图片或视频背景"
+    },
+    {
+      "key": "backgroundType",
+      "type": "select",
+      "label": "背景类型",
+      "default": "image",
+      "options": [
+        { "value": "image", "label": "图片" },
+        { "value": "video", "label": "视频" }
+      ]
+    },
+    {
+      "key": "lightBackgroundUrl",
+      "type": "string",
+      "label": "亮色模式背景地址",
+      "default": "",
+      "help": "亮色模式下的背景图片/视频 URL"
+    },
+    {
+      "key": "darkBackgroundUrl",
+      "type": "string",
+      "label": "暗色模式背景地址",
+      "default": "",
+      "help": "暗色模式下的背景图片/视频 URL"
+    },
+    {
+      "key": "backgroundBlur",
+      "type": "number",
+      "label": "背景模糊半径 (px)",
+      "default": 0,
+      "min": 0,
+      "max": 50,
+      "help": "0 表示不模糊"
+    },
+    {
+      "key": "backgroundOverlay",
+      "type": "number",
+      "label": "背景遮罩强度 (-100 到 100)",
+      "default": 0,
+      "min": -100,
+      "max": 100,
+      "help": "负数透明，0关闭，正数黑色遮罩"
+    }
+  ]
+}
