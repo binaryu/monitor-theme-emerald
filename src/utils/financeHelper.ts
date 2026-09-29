@@ -218,6 +218,30 @@ export function calculateTotalMonthlyAverageCostCNY(
   }, 0)
 }
 
+/**
+ * 获取计费周期的总天数
+ * @param billingCycle 计费周期（月数或天数）
+ */
+export function getCycleDays(billingCycle: number): number {
+  if (billingCycle >= 28)
+    return billingCycle
+  if (billingCycle === 1)
+    return 30
+  if (billingCycle === 3)
+    return 91
+  if (billingCycle === 6)
+    return 182
+  if (billingCycle === 12)
+    return 365
+  if (billingCycle === 24)
+    return 730
+  if (billingCycle === 36)
+    return 1095
+  if (billingCycle > 0)
+    return billingCycle * 30.4375
+  return 0
+}
+
 export function calculateMonthlyAverageCostCNY(
   node: NodeData,
   exchangeRates: ExchangeRates,
@@ -230,7 +254,13 @@ export function calculateMonthlyAverageCostCNY(
   if (!Number.isFinite(billingCycle) || billingCycle <= 0)
     return 0
 
-  return priceCNY / billingCycle * MONTH_DAYS
+  // 若 billingCycle 是天数（>= 28 天）
+  if (billingCycle >= 28) {
+    return (priceCNY / billingCycle) * 30
+  }
+
+  // 否则 billingCycle 是月数（1 为月付，12 为年付）
+  return priceCNY / billingCycle
 }
 
 export function calculateRemainingValueCNY(
@@ -238,29 +268,42 @@ export function calculateRemainingValueCNY(
   exchangeRates: ExchangeRates,
   now = new Date(),
 ): number {
-  if (!node.expired_at)
-    return 0
-
   const priceCNY = getPriceCNY(node, exchangeRates)
   if (priceCNY <= 0)
     return 0
 
-  const expiredAt = new Date(node.expired_at).getTime()
-  if (!Number.isFinite(expiredAt))
+  const billingCycle = Number(node.billing_cycle)
+  if (!Number.isFinite(billingCycle) || billingCycle <= 0)
     return 0
 
-  const diffMs = expiredAt - now.getTime()
-  const diffYears = diffMs / (MS_PER_DAY * 365)
+  // 1. 获取剩余天数：优先使用 hub 提供的精确 expires_in，无则按 expired_at 计算
+  let remainingDays = 0
+  if (typeof node.expires_in === 'number') {
+    remainingDays = node.expires_in
+  }
+  else if (node.expired_at) {
+    const expiredAt = new Date(node.expired_at).getTime()
+    if (Number.isFinite(expiredAt)) {
+      const diffMs = expiredAt - now.getTime()
+      remainingDays = diffMs / MS_PER_DAY
+    }
+  }
 
-  if (diffYears > LONG_TERM_YEARS)
+  // 已过期
+  if (remainingDays <= 0)
+    return 0
+
+  // 超过 100 年视为长期传家宝，剩余价值即当前周期总价
+  if (remainingDays > LONG_TERM_YEARS * 365)
     return priceCNY
 
-  const billingCycle = Number(node.billing_cycle)
-  const billingCycleMs = billingCycle * MS_PER_DAY
-  if (diffMs > 0 && billingCycleMs > 0)
-    return priceCNY * (diffMs / billingCycleMs)
+  // 2. 获取计费周期天数
+  const cycleDays = getCycleDays(billingCycle)
+  if (cycleDays <= 0)
+    return 0
 
-  return 0
+  // 剩余价值 = (单周期单日费用) * 剩余天数
+  return (priceCNY / cycleDays) * remainingDays
 }
 
 export function formatFinanceAmount(amount: number, currency: CurrencyCode): {
