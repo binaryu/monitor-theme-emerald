@@ -30,7 +30,7 @@ function shouldIgnoreRollupWarning(warning: { code?: string, id?: string }): boo
 
 /**
  * Vite 插件：构建后打包 monitor-probe 主题包 theme.tar.gz
- * <short>/
+ * 内部根目录结构：
  * ├── theme.json
  * ├── preview.png
  * └── dist/
@@ -40,7 +40,6 @@ function monitorThemeTarGz(): Plugin {
     name: 'monitor-theme-tar-gz',
     apply: 'build',
     closeBundle: async () => {
-      const short = manifest.short || 'emerald'
       const distDir = resolve(__dirname, 'dist')
       const themeJsonPath = resolve(__dirname, 'theme.json')
       const previewPath = resolve(__dirname, 'preview.png')
@@ -72,14 +71,14 @@ function monitorThemeTarGz(): Plugin {
         archive.pipe(output)
 
         if (existsSync(themeJsonPath)) {
-          archive.file(themeJsonPath, { name: `${short}/theme.json` })
+          archive.file(themeJsonPath, { name: 'theme.json' })
         }
 
         if (existsSync(previewPath)) {
-          archive.file(previewPath, { name: `${short}/preview.png` })
+          archive.file(previewPath, { name: 'preview.png' })
         }
 
-        archive.directory(distDir, `${short}/dist`)
+        archive.directory(distDir, 'dist')
 
         archive.finalize()
       })

@@ -1,0 +1,60 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Enable Corepack & Install pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@latest --activate
+
+      - name: Install dependencies
+        run: pnpm install --no-frozen-lockfile
+
+      - name: Verify versions
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          V=v$(node -p 'require("./theme.json").version')
+          if [ "$GITHUB_REF_NAME" != "$V" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match theme.json $V"
+            exit 1
+          fi
+
+      - name: Build theme
+        run: pnpm build
+
+      - name: Verify theme archive integrity
+        run: gzip -t theme.tar.gz
+
+      - name: Generate checksum
+        run: sha256sum theme.tar.gz | cut -d' ' -f1 | tee theme.tar.gz.sha256
+
+      - name: Create or update GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          gh release create "$GITHUB_REF_NAME" theme.tar.gz theme.tar.gz.sha256 \
+            --title "$GITHUB_REF_NAME" \
+            --generate-notes \
+            --repo "$GITHUB_REPOSITORY"
+        env:
+          GH_TOKEN: ${{ github.token }}
