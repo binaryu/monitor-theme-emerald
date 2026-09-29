@@ -9,9 +9,12 @@ import './styles/main.css'
 
 window.$message = message
 
-setupIconify().catch((err) => {
+try {
+  setupIconify()
+}
+catch (err) {
   console.warn('[main] iconify init failed', err)
-})
+}
 
 const pinia = createPinia()
 const app = createApp(App)
