@@ -81,6 +81,9 @@ export interface MonitorNode {
   day_tx: number
   hostname?: string
   ip?: string
+  ipv4?: string
+  ipv6?: string
+  addresses?: { address: string, source?: string }[]
   remark?: string
 }
 

@@ -358,7 +358,10 @@ const trafficProgressStyle = computed(() => ({
           :class="pickSurfaceClass('bg-background/60 hover:bg-background', 'bg-background/50 hover:bg-background backdrop-blur-xs')"
           content-class="pt-0"
         >
-          <div class="gap-3 grid grid-cols-2">
+          <div
+            class="gap-3 grid grid-cols-2"
+            :class="appStore.isLoggedIn && (data?.ipv4 || data?.ipv6) ? 'sm:grid-cols-4' : ''"
+          >
             <div class="relative min-w-0 overflow-hidden rounded-sm bg-slate-500/5 p-2">
               <div
                 v-if="hasTrafficLimit"
@@ -389,6 +392,24 @@ const trafficProgressStyle = computed(() => ({
                 <span class="px-0.5" />
                 <Icon icon="tabler:chevron-down" width="12" height="12" />
                 {{ formatBytesPerSecond(data?.net_in ?? 0) }}
+              </span>
+            </div>
+            <div v-if="appStore.isLoggedIn && data?.ipv4" class="min-w-0 flex flex-col gap-1 rounded-sm bg-slate-500/5 p-2">
+              <div class="flex gap-1 items-center text-muted-foreground">
+                <Icon icon="tabler:network" :width="14" :height="14" />
+                <span class="text-xs sm:text-sm">IPv4</span>
+              </div>
+              <span class="text-xs sm:text-sm break-all font-mono">
+                {{ data.ipv4 }}
+              </span>
+            </div>
+            <div v-if="appStore.isLoggedIn && data?.ipv6" class="min-w-0 flex flex-col gap-1 rounded-sm bg-slate-500/5 p-2">
+              <div class="flex gap-1 items-center text-muted-foreground">
+                <Icon icon="tabler:network" :width="14" :height="14" />
+                <span class="text-xs sm:text-sm">IPv6</span>
+              </div>
+              <span class="text-xs sm:text-sm break-all font-mono">
+                {{ data.ipv6 }}
               </span>
             </div>
           </div>

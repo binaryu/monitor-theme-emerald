@@ -71,7 +71,7 @@ export const DISPLAY_FINANCE_CURRENCIES = [
   'UAH',
   'CHF',
 ] as const satisfies readonly CurrencyCode[]
-export type ExchangeRates = Record<CurrencyCode, number>
+export type ExchangeRates = Record<CurrencyCode, number> & { [code: string]: number | undefined }
 export type ExchangeRateSource = 'cache' | 'network' | 'stale-cache' | 'default'
 
 interface ExchangeRatesCache {
@@ -83,8 +83,8 @@ interface ExchangeRatesCache {
 
 const CACHE_KEY = 'komari_finance_exchange_rates_cny_v1'
 const MS_PER_DAY = 24 * 60 * 60 * 1000
-const MONTH_DAYS = 30
 const LONG_TERM_YEARS = 100
+const ISO_CURRENCY_REGEX = /^[A-Z]{3}$/
 
 export const DEFAULT_EXCHANGE_RATES = Object.fromEntries(
   Object.entries(FINANCE_CURRENCY_CONFIG).map(([currency, config]) => [currency, config.rate]),
@@ -223,8 +223,6 @@ export function calculateTotalMonthlyAverageCostCNY(
  * @param billingCycle 计费周期（月数或天数）
  */
 export function getCycleDays(billingCycle: number): number {
-  if (billingCycle >= 28)
-    return billingCycle
   if (billingCycle === 1)
     return 30
   if (billingCycle === 3)
@@ -237,8 +235,14 @@ export function getCycleDays(billingCycle: number): number {
     return 730
   if (billingCycle === 36)
     return 1095
-  if (billingCycle > 0)
-    return billingCycle * 30.4375
+  if (billingCycle === 60)
+    return 1825
+  if (billingCycle > 0 && billingCycle % 12 === 0)
+    return (billingCycle / 12) * 365
+  if (billingCycle > 0 && billingCycle <= 1200)
+    return billingCycle * 30
+  if (billingCycle > 1200)
+    return billingCycle
   return 0
 }
 
@@ -254,12 +258,12 @@ export function calculateMonthlyAverageCostCNY(
   if (!Number.isFinite(billingCycle) || billingCycle <= 0)
     return 0
 
-  // 若 billingCycle 是天数（>= 28 天）
-  if (billingCycle >= 28) {
+  // 周期大于 1200 说明为天数
+  if (billingCycle > 1200) {
     return (priceCNY / billingCycle) * 30
   }
 
-  // 否则 billingCycle 是月数（1 为月付，12 为年付）
+  // 否则 billingCycle 为月数（1 为月付，12 为年付，36 为三年付等）
   return priceCNY / billingCycle
 }
 
@@ -366,11 +370,19 @@ function getPriceCNY(node: NodeData, exchangeRates: ExchangeRates): number {
   if (!Number.isFinite(price) || price <= 0)
     return 0
 
+  const rawCode = String(node.currency || '').trim().toUpperCase()
+  // 支持其他任意 ISO 4217 三字母币种
+  if (ISO_CURRENCY_REGEX.test(rawCode) && !(SUPPORTED_FINANCE_CURRENCIES as string[]).includes(rawCode)) {
+    const rate = exchangeRates[rawCode]
+    return rate && rate > 0 ? price / rate : 0
+  }
+
   const currency = normalizeCurrency(node.currency)
   if (currency === 'CNY')
     return price
 
-  return price / exchangeRates[currency]
+  const rate = exchangeRates[currency]
+  return rate && rate > 0 ? price / rate : 0
 }
 
 async function fetchExchangeRates(): Promise<ExchangeRates | null> {
@@ -452,6 +464,12 @@ function sanitizeExchangeRates(rates: unknown): ExchangeRates | null {
       return null
 
     result[currency] = value
+  }
+
+  for (const [code, raw] of Object.entries(record)) {
+    const value = Number(raw)
+    if (ISO_CURRENCY_REGEX.test(code) && !(code in result) && Number.isFinite(value) && value > 0)
+      result[code] = value
   }
 
   return result

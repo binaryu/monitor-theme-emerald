@@ -27,7 +27,7 @@ export function showTrafficProgress(node: NodeData): boolean {
 }
 
 export function getTrafficUsed(node: NodeData): number {
-  if (typeof node.month_used === 'number' && node.month_used > 0)
+  if (typeof node.month_used === 'number' && node.month_used >= 0)
     return node.month_used
 
   // 优先按月流量计算，无月流量时退回累计流量

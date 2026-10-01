@@ -154,6 +154,16 @@ export function parseBillingCycleType(billingCycle: number): BillingCycleType {
 export function getBillingCycleText(billingCycle: number, lang: 'zh-CN' | 'en-US' = 'zh-CN'): string {
   const type = parseBillingCycleType(billingCycle)
 
+  if (type === 'custom' && billingCycle > 0) {
+    if (billingCycle % 12 === 0) {
+      const years = billingCycle / 12
+      return lang === 'zh-CN' ? `${years} 年` : `${years} Years`
+    }
+    if (billingCycle <= 1200) {
+      return lang === 'zh-CN' ? `${billingCycle} 个月` : `${billingCycle} Months`
+    }
+  }
+
   const texts: Record<BillingCycleType, Record<'zh-CN' | 'en-US', string>> = {
     monthly: { 'zh-CN': '月', 'en-US': 'Month' },
     quarterly: { 'zh-CN': '季', 'en-US': 'Quarter' },

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Icon } from '@iconify/vue'
-import { computed, inject, ref } from 'vue'
+import { computed, inject, ref, watchEffect } from 'vue'
 import { useRouter } from 'vue-router'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
@@ -12,7 +12,15 @@ const appStore = useAppStore()
 
 const isScrolled = inject<ReturnType<typeof ref<boolean>>>('isScrolled', ref(false))
 
-const siteFavicon = ref('/favicon.svg')
+const siteFavicon = computed(() => appStore.siteIconUrl || '/favicon.svg')
+
+watchEffect(() => {
+  const icon = siteFavicon.value
+  const link = document.querySelector<HTMLLinkElement>('link[rel~=\'icon\']')
+  if (link) {
+    link.href = icon
+  }
+})
 
 const actionButtons = computed(() => {
   const buttons = [
@@ -54,7 +62,7 @@ const sitename = computed(() => appStore.publicSettings?.sitename || 'Monitor')
   >
     <div class="px-4 flex-between h-14 max-w-[1280px] mx-auto">
       <div class="flex items-center gap-3 cursor-pointer" @click="router.push('/')">
-        <div v-if="siteFavicon === '/favicon.svg'" class="size-8 flex items-center justify-center">
+        <div v-if="!appStore.siteIconUrl" class="size-8 flex items-center justify-center">
           <svg
             xmlns="http://www.w3.org/2000/svg"
             viewBox="0 0 32 32"

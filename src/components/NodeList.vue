@@ -330,8 +330,11 @@ function getRowTransitionStyle(index: number): Record<string, string> {
                       </span>
                     </div>
                     <TrafficProgress
-                      :upload="node.net_total_up ?? 0" :download="node.net_total_down ?? 0"
-                      :traffic-limit="node.traffic_limit" :traffic-limit-type="(node.traffic_limit_type || 'sum')"
+                      :used="getTrafficUsed(node)"
+                      :upload="node.month_tx ?? node.net_total_up ?? 0"
+                      :download="node.month_rx ?? node.net_total_down ?? 0"
+                      :traffic-limit="node.traffic_limit"
+                      :traffic-limit-type="(node.traffic_limit_type || 'sum')"
                       height="4px"
                     />
                   </div>

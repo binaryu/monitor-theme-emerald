@@ -13,6 +13,7 @@ export interface TrafficProgressProps {
   singleColor?: string
   height?: number | string
   showIndicator?: boolean
+  used?: number
 }
 
 const props = withDefaults(defineProps<TrafficProgressProps>(), {
@@ -25,7 +26,11 @@ const props = withDefaults(defineProps<TrafficProgressProps>(), {
 
 const showProgress = computed(() => props.trafficLimit > 0)
 
-const usedTraffic = computed(() => calculateTrafficUsed(props.upload, props.download, props.trafficLimitType))
+const usedTraffic = computed(() => {
+  if (typeof props.used === 'number' && props.used >= 0)
+    return props.used
+  return calculateTrafficUsed(props.upload, props.download, props.trafficLimitType)
+})
 
 const totalPercentage = computed(() => {
   if (props.trafficLimit <= 0)

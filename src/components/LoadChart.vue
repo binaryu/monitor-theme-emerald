@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import type { RecordFormat } from '@/utils/recordHelper'
 import type { MetricsPoint } from '@/utils/api'
+import type { RecordFormat } from '@/utils/recordHelper'
 import { Icon } from '@iconify/vue'
 import { useIntervalFn } from '@vueuse/core'
 import dayjs from 'dayjs'
@@ -13,9 +13,9 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useBackgroundSurface } from '@/composables/useBackgroundSurface'
 import { useAppStore } from '@/stores/app'
 import { useNodesStore } from '@/stores/nodes'
+import { getNodeMetrics } from '@/utils/api'
 import { formatBytes, formatBytesSplit } from '@/utils/helper'
 import { fillMissingTimePoints } from '@/utils/recordHelper'
-import { getNodeMetrics } from '@/utils/api'
 import '@/utils/echarts' // 共享 ECharts 配置
 
 export interface StatusRecord {
@@ -33,6 +33,8 @@ export interface StatusRecord {
   disk_total: number
   net_in: number
   net_out: number
+  net_in_peak?: number
+  net_out_peak?: number
   net_total_up: number
   net_total_down: number
   process: number
@@ -202,6 +204,8 @@ function statusToRecordFormat(records: StatusRecord[]): RecordFormat[] {
     disk_total: r.disk_total ?? null,
     net_in: r.net_in ?? null,
     net_out: r.net_out ?? null,
+    net_in_peak: r.net_in_peak ?? null,
+    net_out_peak: r.net_out_peak ?? null,
     net_total_up: r.net_total_up ?? null,
     net_total_down: r.net_total_down ?? null,
     process: r.process ?? null,
@@ -227,6 +231,8 @@ function convertMetricsToStatusRecords(metrics: MetricsPoint[]): StatusRecord[] 
     disk_total: node?.disk_total || 0,
     net_in: p.net_rx,
     net_out: p.net_tx,
+    net_in_peak: p.net_rx_max,
+    net_out_peak: p.net_tx_max,
     net_total_up: 0,
     net_total_down: 0,
     process: 0,
@@ -606,14 +612,24 @@ const diskChartOption = computed(() => ({
   ],
 }))
 
+// 较新的 Hub 为每个时间桶返回最高速率：长时间段的平均值会抹平突发，峰值用虚线补上
+const hasNetworkPeak = computed(() => chartData.value.some(r => r.net_in_peak != null || r.net_out_peak != null))
+
+const NETWORK_SERIES_LABELS: Record<string, string> = {
+  下载: '↓ 下载',
+  上传: '↑ 上传',
+  下载峰值: '↓ 峰值',
+  上传峰值: '↑ 峰值',
+}
+
 // 网络图表
 const networkChartOption = computed(() => ({
   animation: false,
-  color: [chartColors.quinary, chartColors.quaternary],
+  color: [chartColors.quinary, chartColors.quaternary, chartColors.quinary, chartColors.quaternary],
   tooltip: {
     ...baseTooltipConfig.value,
     formatter: (params: unknown) => {
-      const p = params as Array<{ dataIndex: number, seriesName: string, value: number, color: string }>
+      const p = params as Array<{ dataIndex: number, seriesName: string, value: number | null, color: string }>
       if (!p.length)
         return ''
       const firstParam = p[0]
@@ -628,8 +644,10 @@ const networkChartOption = computed(() => ({
       html += '<div style="display:flex;flex-direction:column;gap:4px">'
 
       for (const item of p) {
+        if (item.value == null)
+          continue
         const colorDot = `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${item.color};margin-right:8px;flex-shrink:0"></span>`
-        const label = item.seriesName === '下载' ? '↓ 下载' : '↑ 上传'
+        const label = NETWORK_SERIES_LABELS[item.seriesName] ?? item.seriesName
         html += `<div style="display:flex;align-items:center">${colorDot}<span>${label}</span><span style="margin-left:auto;font-weight:600;margin-left:16px">${formatBytes(item.value)}/s</span></div>`
       }
       html += '</div>'
@@ -637,7 +655,7 @@ const networkChartOption = computed(() => ({
     },
   },
   legend: {
-    data: ['下载', '上传'],
+    data: hasNetworkPeak.value ? ['下载', '上传', '下载峰值', '上传峰值'] : ['下载', '上传'],
     bottom: 4,
     itemWidth: 12,
     itemHeight: 12,
@@ -661,7 +679,6 @@ const networkChartOption = computed(() => ({
       name: '下载',
       type: 'line',
       data: chartData.value.map(r => r.net_in ?? 0),
-
       showSymbol: false,
       lineStyle: { width: 1.5, color: chartColors.quinary, cap: 'round' as const },
     },
@@ -669,10 +686,27 @@ const networkChartOption = computed(() => ({
       name: '上传',
       type: 'line',
       data: chartData.value.map(r => r.net_out ?? 0),
-
       showSymbol: false,
       lineStyle: { width: 1.5, color: chartColors.quaternary, cap: 'round' as const },
     },
+    ...(hasNetworkPeak.value
+      ? [
+          {
+            name: '下载峰值',
+            type: 'line',
+            data: chartData.value.map(r => r.net_in_peak),
+            showSymbol: false,
+            lineStyle: { width: 1, type: 'dashed' as const, opacity: 0.6, color: chartColors.quinary, cap: 'round' as const },
+          },
+          {
+            name: '上传峰值',
+            type: 'line',
+            data: chartData.value.map(r => r.net_out_peak),
+            showSymbol: false,
+            lineStyle: { width: 1, type: 'dashed' as const, opacity: 0.6, color: chartColors.quaternary, cap: 'round' as const },
+          },
+        ]
+      : []),
   ],
 }))
 

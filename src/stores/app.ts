@@ -123,6 +123,17 @@ const useAppStore = defineStore('app', () => {
     return 'earth'
   })
 
+  const siteIconUrl = computed<string>(() => {
+    const settings = publicSettings.value?.theme_settings
+    if (settings && typeof settings.siteIconUrl === 'string') {
+      const trimmed = settings.siteIconUrl.trim()
+      if (trimmed.length > 0) {
+        return trimmed
+      }
+    }
+    return ''
+  })
+
   const visitorInfoCardEnabled = computed<boolean>(() => {
     const settings = publicSettings.value?.theme_settings
     if (settings && typeof settings.visitorInfoCardEnabled === 'boolean') {
@@ -352,6 +363,7 @@ const useAppStore = defineStore('app', () => {
     alertTitle,
     alertContent,
     earthViewMode,
+    siteIconUrl,
     visitorInfoCardEnabled,
     visitorCountryCode,
     hideAdminEntryWhenLoggedOut,

@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import type { PublicPingTaskOrderItem } from '@/utils/pingTaskOrder'
 import { Icon } from '@iconify/vue'
 import dayjs from 'dayjs'
 import { computed, onMounted, ref, shallowRef, watch } from 'vue'
@@ -11,12 +10,8 @@ import { Spinner } from '@/components/ui/spinner'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useBackgroundSurface } from '@/composables/useBackgroundSurface'
 import { useAppStore } from '@/stores/app'
-import {
-
-  sortTasksByPublicOrder,
-} from '@/utils/pingTaskOrder'
-import { cutPeakValues, interpolateNullsLinear } from '@/utils/recordHelper'
 import { getNodeMetrics } from '@/utils/api'
+import { cutPeakValues, interpolateNullsLinear } from '@/utils/recordHelper'
 import '@/utils/echarts' // 共享 ECharts 配置
 
 const props = defineProps<{
@@ -137,49 +132,6 @@ interface TaskInfo {
   type?: string
 }
 
-interface MetricPoint {
-  time: string
-  value: number | null
-  tags?: Record<string, string>
-  tag?: Record<string, string>
-}
-
-interface MetricSeries {
-  metric_key: 'ping.latency_ms' | 'ping.loss'
-  tags?: Record<string, string>
-  tag?: Record<string, string>
-  points: MetricPoint[]
-}
-
-interface MetricQueryResponse {
-  series: MetricSeries[]
-}
-
-interface PingMetricTaskStats {
-  task_id: string
-  name?: string
-  type?: string
-  interval?: number
-  loss: number
-  min?: number
-  max?: number
-  avg?: number
-  latest?: number
-  total: number
-  p50?: number
-  p99?: number
-  p99_p50_ratio?: number
-}
-
-interface PingMetricStatsResponse {
-  stats: PingMetricTaskStats[]
-}
-
-interface PingRecordsResponse {
-  records: PingRecord[]
-  tasks?: TaskInfo[]
-}
-
 interface LossRecord {
   task_id: number
   time: string
@@ -199,7 +151,6 @@ const tasks = shallowRef<TaskInfo[]>([])
 const loading = ref(false)
 const error = ref<string | null>(null)
 let fetchRequestId = 0
-let metricRpcSupported: boolean | null = null
 
 // 任务选择
 const selectedTaskIds = ref<number[]>([])
@@ -228,7 +179,13 @@ async function fetchMonitorPingRecords(uuid: string, hours: number): Promise<Pin
   const probeNames = res.probes || {}
   const probeLoss = res.loss || {}
 
-  const taskIds = [...new Set(pingList.map(p => p.task_id))]
+  // 保持 ping 行中站长在后台设置的顺序，并将没有 ping 记录的探针追加在末尾
+  const taskIds = [
+    ...new Set([
+      ...pingList.map(p => p.task_id),
+      ...Object.keys(probeNames).map(Number),
+    ]),
+  ]
   const taskList: TaskInfo[] = taskIds.map((id) => {
     const rawLoss = probeLoss[String(id)]
     const loss = typeof rawLoss === 'number' ? rawLoss : 0

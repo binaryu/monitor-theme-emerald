@@ -82,6 +82,7 @@ export interface NodeData {
 export type WsConnectionState = 'disconnected' | 'connecting' | 'connected' | 'reconnecting'
 
 const EARTH_SNAPSHOT_INTERVAL_MS = 60_000
+const MONTHS_CYCLE_REGEX = /^(\d+)m$/
 
 export function parseBillingCycleMonths(cycle: string): number {
   const named: Record<string, number> = {
@@ -94,7 +95,7 @@ export function parseBillingCycleMonths(cycle: string): number {
   }
   if (cycle === 'once')
     return 0
-  return named[cycle] ?? Number(/^(\d+)m$/.exec(cycle)?.[1]) ?? 1
+  return named[cycle] ?? Number(MONTHS_CYCLE_REGEX.exec(cycle)?.[1]) ?? 1
 }
 
 function parseTrafficMode(mode: string): TrafficLimitType {
@@ -110,9 +111,26 @@ function parseTrafficMode(mode: string): TrafficLimitType {
   return 'sum'
 }
 
+function extractNodeAddresses(n: MonitorNode): { ipv4?: string, ipv6?: string } {
+  const isV6 = (a: string) => a.includes(':')
+  const list = [
+    n.ipv4,
+    n.ipv6,
+    ...(n.addresses?.map(a => a.address) ?? []),
+    n.ip,
+  ]
+  const ipv4 = list.find(a => typeof a === 'string' && a.trim() !== '' && !isV6(a))
+  const ipv6 = list.find(a => typeof a === 'string' && a.trim() !== '' && isV6(a))
+  return {
+    ...(ipv4 ? { ipv4 } : {}),
+    ...(ipv6 ? { ipv6 } : {}),
+  }
+}
+
 export function convertMonitorNodeToNodeData(node: MonitorNode): NodeData {
   const m = node.metrics
   const hasMetrics = node.online && m !== null
+  const addrs = extractNodeAddresses(node)
 
   return {
     uuid: String(node.id),
@@ -125,8 +143,8 @@ export function convertMonitorNodeToNodeData(node: MonitorNode): NodeData {
     os: node.os || '',
     kernel_version: node.kernel || '',
     gpu_name: undefined,
-    ipv4: node.ip,
-    ipv6: undefined,
+    ipv4: addrs.ipv4,
+    ipv6: addrs.ipv6,
     region: node.country || '',
     remark: node.remark,
     public_remark: node.remark || '',
