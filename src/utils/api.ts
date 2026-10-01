@@ -6,9 +6,13 @@
 import manifest from '../../theme.json' with { type: 'json' }
 
 export interface MeResponse {
-  sitename: string
+  site_name?: string
+  sitename?: string
   authed: boolean
-  public: boolean
+  public?: boolean
+  public_page?: boolean
+  history_days?: number
+  site?: string
 }
 
 export interface PublicSettings {

@@ -12,7 +12,7 @@ const appStore = useAppStore()
 
 const isScrolled = inject<ReturnType<typeof ref<boolean>>>('isScrolled', ref(false))
 
-const siteFavicon = ref('/favicon.ico')
+const siteFavicon = ref('/favicon.svg')
 
 const actionButtons = computed(() => {
   const buttons = [
@@ -54,7 +54,18 @@ const sitename = computed(() => appStore.publicSettings?.sitename || 'Monitor')
   >
     <div class="px-4 flex-between h-14 max-w-[1280px] mx-auto">
       <div class="flex items-center gap-3 cursor-pointer" @click="router.push('/')">
-        <Avatar class="size-8">
+        <div v-if="siteFavicon === '/favicon.svg'" class="size-8 flex items-center justify-center">
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            viewBox="0 0 32 32"
+            class="size-6 fill-foreground"
+          >
+            <rect x="4" y="18" width="5" height="10" rx="1.5" />
+            <rect x="13" y="10" width="5" height="18" rx="1.5" />
+            <rect x="22" y="4" width="5" height="24" rx="1.5" />
+          </svg>
+        </div>
+        <Avatar v-else class="size-8">
           <AvatarImage :src="siteFavicon" :alt="sitename" />
           <AvatarFallback>{{ sitename.slice(0, 1) }}</AvatarFallback>
         </Avatar>

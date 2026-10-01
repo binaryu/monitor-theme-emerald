@@ -30,7 +30,7 @@ class InitManager {
     try {
       // 1. 并行请求 /api/me、/api/nodes 与主题设置
       const [meRes, themeConfig, nodesRes] = await Promise.all([
-        getMe().catch(() => ({ sitename: 'Status', authed: false, public: true })),
+        getMe().catch(() => ({ site_name: 'Monitor', sitename: 'Monitor', authed: false, public_page: true })),
         loadThemeConfig().catch(() => ({})),
         getNodes().catch((e) => {
           console.error('[InitManager] Failed to fetch initial nodes:', e)
@@ -38,18 +38,21 @@ class InitManager {
         }),
       ])
 
+      const resolvedSitename = meRes.site_name || meRes.sitename || 'Monitor'
+      const isPublic = meRes.public_page ?? meRes.public ?? true
+
       // 2. 更新系统状态和配置
       this.appStore.updateLoginState(meRes.authed)
       this.appStore.publicSettings = {
-        sitename: meRes.sitename,
+        sitename: resolvedSitename,
         authed: meRes.authed,
-        public: meRes.public,
+        public: isPublic,
         theme_settings: themeConfig,
       }
 
       // 更新网页标题
-      if (meRes.sitename) {
-        document.title = meRes.sitename
+      if (resolvedSitename) {
+        document.title = resolvedSitename
       }
 
       // 3. 填充初始节点数据
