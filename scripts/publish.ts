@@ -110,7 +110,7 @@ async function main(): Promise<void> {
     throw new Error(`Invalid version: ${version}`)
   }
 
-  const files = ['package.json', 'komari-theme.json']
+  const files = ['package.json', 'theme.json']
 
   for (const file of files) {
     updateVersionField(resolve(process.cwd(), file), version)

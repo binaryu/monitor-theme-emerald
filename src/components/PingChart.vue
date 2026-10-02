@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type { PingPoint } from '@/utils/api'
 import { Icon } from '@iconify/vue'
 import dayjs from 'dayjs'
 import { computed, onMounted, ref, shallowRef, watch } from 'vue'
@@ -171,6 +172,77 @@ const mergeToleranceMs = computed(() => {
   )
 })
 
+function getPercentile(sortedValues: number[], percentile: number): number | null {
+  if (!sortedValues.length)
+    return null
+
+  const position = Math.min(sortedValues.length - 1, Math.max(0, (sortedValues.length - 1) * percentile))
+  const lowerIndex = Math.floor(position)
+  const upperIndex = Math.ceil(position)
+  const lowerValue = sortedValues[lowerIndex]
+  const upperValue = sortedValues[upperIndex]
+
+  if (lowerValue === undefined || upperValue === undefined)
+    return null
+  if (lowerIndex === upperIndex)
+    return lowerValue
+
+  return lowerValue + (upperValue - lowerValue) * (position - lowerIndex)
+}
+
+function computeTaskStats(
+  points: { latency: number | null, ts?: number }[],
+  rawLoss?: number,
+) {
+  const validLatencies: number[] = []
+  let latest: number | undefined
+
+  for (const p of points) {
+    if (typeof p.latency === 'number' && p.latency >= 0) {
+      validLatencies.push(p.latency)
+      latest = p.latency
+    }
+  }
+
+  const loss = typeof rawLoss === 'number'
+    ? rawLoss
+    : (points.length > 0 ? ((points.length - validLatencies.length) / points.length) * 100 : 0)
+
+  let min: number | undefined
+  let max: number | undefined
+  let avg: number | undefined
+  let p50: number | undefined
+  let p99: number | undefined
+  let p99_p50_ratio: number | undefined
+
+  if (validLatencies.length > 0) {
+    const sorted = [...validLatencies].sort((a, b) => a - b)
+    min = sorted[0]
+    max = sorted.at(-1)
+    const sum = validLatencies.reduce((acc, v) => acc + v, 0)
+    avg = sum / validLatencies.length
+    const p50Val = getPercentile(sorted, 0.5)
+    const p99Val = getPercentile(sorted, 0.99)
+    p50 = p50Val !== null ? p50Val : undefined
+    p99 = p99Val !== null ? p99Val : undefined
+    if (p50 !== undefined && p99 !== undefined) {
+      p99_p50_ratio = p50 > 0 ? (p99 / p50) : (p99 === 0 ? 1 : undefined)
+    }
+  }
+
+  return {
+    total: points.length,
+    loss,
+    min,
+    max,
+    avg,
+    latest,
+    p50,
+    p99,
+    p99_p50_ratio,
+  }
+}
+
 // ==================== 数据获取 ====================
 
 async function fetchMonitorPingRecords(uuid: string, hours: number): Promise<PingChartData> {
@@ -186,14 +258,27 @@ async function fetchMonitorPingRecords(uuid: string, hours: number): Promise<Pin
       ...Object.keys(probeNames).map(Number),
     ]),
   ]
+
+  const pingByTaskId = new Map<number, PingPoint[]>()
+  for (const p of pingList) {
+    let list = pingByTaskId.get(p.task_id)
+    if (!list) {
+      list = []
+      pingByTaskId.set(p.task_id, list)
+    }
+    list.push(p)
+  }
+
   const taskList: TaskInfo[] = taskIds.map((id) => {
     const rawLoss = probeLoss[String(id)]
-    const loss = typeof rawLoss === 'number' ? rawLoss : 0
+    const points = (pingByTaskId.get(id) || []).slice().sort((a, b) => a.ts - b.ts)
+    const stats = computeTaskStats(points, typeof rawLoss === 'number' ? rawLoss : undefined)
+
     return {
       id,
       name: probeNames[String(id)] || `探针 #${id}`,
       interval: 60,
-      loss,
+      ...stats,
     }
   })
 
@@ -393,9 +478,47 @@ const latestValues = computed(() => {
 
   return tasks.value.map((task, idx) => {
     const safeIdx = Math.max(0, idx % chartColors.length)
+    const latestVal = latestMap.get(task.id) ?? (task.latest !== undefined ? task.latest : null)
+
+    let avg = task.avg
+    let min = task.min
+    let max = task.max
+    let p50 = task.p50
+    let p99 = task.p99
+    let p99_p50_ratio = task.p99_p50_ratio
+    let total = task.total
+    let loss = task.loss
+
+    if (avg === undefined && remoteData.value.length) {
+      const taskRecs = remoteData.value.filter(r => r.task_id === task.id)
+      if (taskRecs.length) {
+        const stats = computeTaskStats(
+          taskRecs.map(r => ({ latency: r.value < 0 ? null : r.value, ts: dayjs(r.time).valueOf() })),
+          task.loss,
+        )
+        avg = stats.avg
+        min = stats.min
+        max = stats.max
+        p50 = stats.p50
+        p99 = stats.p99
+        p99_p50_ratio = stats.p99_p50_ratio
+        total = stats.total
+        loss = stats.loss
+      }
+    }
+
     return {
       ...task,
-      latestValue: latestMap.get(task.id) ?? null,
+      avg,
+      min,
+      max,
+      p50,
+      p99,
+      p99_p50_ratio,
+      total,
+      loss,
+      latest: latestVal !== null ? latestVal : task.latest,
+      latestValue: latestVal,
       color: chartColors[safeIdx]!,
     }
   })

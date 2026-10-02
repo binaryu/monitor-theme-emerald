@@ -13,6 +13,7 @@ import { useAppStore } from '@/stores/app'
 import { useNodesStore } from '@/stores/nodes'
 import * as financeHelper from '@/utils/financeHelper'
 import { formatDateTime } from '@/utils/helper'
+import { message } from '@/utils/message'
 import { getTrafficUsed } from '@/utils/nodeHelpers'
 import { getOSImage, getOSName } from '@/utils/osImageHelper'
 import { getFlagSrc, getRegionDisplayName } from '@/utils/regionHelper'
@@ -217,6 +218,18 @@ const trafficUsageText = computed(() => {
   return `${formatBytes(trafficUsed.value)} / ${formatBytes(data.value?.traffic_limit ?? 0)}`
 })
 
+async function copyText(text?: string, label: string = '内容') {
+  if (!text)
+    return
+  try {
+    await navigator.clipboard.writeText(text)
+    message.success(`${label}已复制到剪贴板`)
+  }
+  catch {
+    message.error('复制失败')
+  }
+}
+
 const trafficProgressStyle = computed(() => ({
   width: `${trafficUsedPercentage.value}%`,
 }))
@@ -358,10 +371,8 @@ const trafficProgressStyle = computed(() => ({
           :class="pickSurfaceClass('bg-background/60 hover:bg-background', 'bg-background/50 hover:bg-background backdrop-blur-xs')"
           content-class="pt-0"
         >
-          <div
-            class="gap-3 grid grid-cols-2"
-            :class="appStore.isLoggedIn && (data?.ipv4 || data?.ipv6) ? 'sm:grid-cols-4' : ''"
-          >
+          <div class="gap-3 grid grid-cols-1 sm:grid-cols-2">
+            <!-- 总流量 -->
             <div class="relative min-w-0 overflow-hidden rounded-sm bg-slate-500/5 p-2">
               <div
                 v-if="hasTrafficLimit"
@@ -373,40 +384,72 @@ const trafficProgressStyle = computed(() => ({
                   <Icon icon="icon-park-outline:transfer-data" :width="14" :height="14" />
                   <span class="text-xs sm:text-sm">总流量</span>
                   <div class="flex-1" />
-                  <span class="hidden sm:block text-[11px] font-medium text-foreground/70">{{
-                    formatBytes(data?.net_total_up ?? 0) }} / {{ formatBytes(data?.net_total_down ?? 0) }}</span>
+                  <span
+                    class="text-[11px] font-medium text-foreground/70 flex items-center gap-1 shrink-0"
+                    title="总上传 / 总下载"
+                  >
+                    <span>↑ {{ formatBytes(data?.net_total_up ?? 0) }}</span>
+                    <span class="opacity-40">·</span>
+                    <span>↓ {{ formatBytes(data?.net_total_down ?? 0) }}</span>
+                  </span>
                 </div>
-                <span class="text-xs sm:text-sm break-all">
+                <span class="text-xs sm:text-sm font-medium break-all">
                   {{ trafficUsageText }}
                 </span>
               </div>
             </div>
-            <div class="min-w-0 flex flex-col gap-1 rounded-sm bg-slate-500/5 p-2">
+
+            <!-- 网络速率 -->
+            <div class="min-w-0 flex flex-col gap-1 rounded-sm bg-slate-500/5 p-2 justify-between">
               <div class="flex gap-1 items-center text-muted-foreground">
                 <Icon icon="icon-park-outline:dashboard-one" :width="14" :height="14" />
                 <span class="text-xs sm:text-sm">网络速率</span>
               </div>
-              <span class="text-xs sm:text-sm break-all flex flex-row flex-wrap items-center gap-1">
-                <Icon icon="tabler:chevron-up" width="12" height="12" />
-                {{ formatBytesPerSecond(data?.net_out ?? 0) }}
-                <span class="px-0.5" />
-                <Icon icon="tabler:chevron-down" width="12" height="12" />
-                {{ formatBytesPerSecond(data?.net_in ?? 0) }}
+              <span class="text-xs sm:text-sm font-medium break-all flex flex-row flex-wrap items-center gap-1.5">
+                <span class="inline-flex items-center gap-0.5 text-emerald-600 dark:text-emerald-400">
+                  <Icon icon="tabler:chevron-up" width="13" height="13" />
+                  {{ formatBytesPerSecond(data?.net_out ?? 0) }}
+                </span>
+                <span class="text-muted-foreground/40">·</span>
+                <span class="inline-flex items-center gap-0.5 text-sky-600 dark:text-sky-400">
+                  <Icon icon="tabler:chevron-down" width="13" height="13" />
+                  {{ formatBytesPerSecond(data?.net_in ?? 0) }}
+                </span>
               </span>
             </div>
-            <div v-if="appStore.isLoggedIn && data?.ipv4" class="min-w-0 flex flex-col gap-1 rounded-sm bg-slate-500/5 p-2">
+
+            <!-- IPv4 -->
+            <div
+              v-if="appStore.isLoggedIn && data?.ipv4"
+              class="group/ip min-w-0 flex flex-col gap-1 rounded-sm bg-slate-500/5 p-2 cursor-pointer hover:bg-slate-500/10 transition-colors"
+              :class="!data?.ipv6 && 'sm:col-span-2'"
+              title="点击复制 IPv4"
+              @click="copyText(data.ipv4, 'IPv4')"
+            >
               <div class="flex gap-1 items-center text-muted-foreground">
                 <Icon icon="tabler:network" :width="14" :height="14" />
                 <span class="text-xs sm:text-sm">IPv4</span>
+                <div class="flex-1" />
+                <Icon icon="tabler:copy" width="12" height="12" class="opacity-0 group-hover/ip:opacity-60 transition-opacity" />
               </div>
               <span class="text-xs sm:text-sm break-all font-mono">
                 {{ data.ipv4 }}
               </span>
             </div>
-            <div v-if="appStore.isLoggedIn && data?.ipv6" class="min-w-0 flex flex-col gap-1 rounded-sm bg-slate-500/5 p-2">
+
+            <!-- IPv6 -->
+            <div
+              v-if="appStore.isLoggedIn && data?.ipv6"
+              class="group/ip min-w-0 flex flex-col gap-1 rounded-sm bg-slate-500/5 p-2 cursor-pointer hover:bg-slate-500/10 transition-colors"
+              :class="!data?.ipv4 && 'sm:col-span-2'"
+              title="点击复制 IPv6"
+              @click="copyText(data.ipv6, 'IPv6')"
+            >
               <div class="flex gap-1 items-center text-muted-foreground">
                 <Icon icon="tabler:network" :width="14" :height="14" />
                 <span class="text-xs sm:text-sm">IPv6</span>
+                <div class="flex-1" />
+                <Icon icon="tabler:copy" width="12" height="12" class="opacity-0 group-hover/ip:opacity-60 transition-opacity" />
               </div>
               <span class="text-xs sm:text-sm break-all font-mono">
                 {{ data.ipv6 }}
