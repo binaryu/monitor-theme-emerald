@@ -14,7 +14,7 @@ import { useNodesStore } from '@/stores/nodes'
 import * as financeHelper from '@/utils/financeHelper'
 import { formatDateTime } from '@/utils/helper'
 import { message } from '@/utils/message'
-import { getTrafficUsed } from '@/utils/nodeHelpers'
+import { formatOfflineTime, getTrafficUsed } from '@/utils/nodeHelpers'
 import { getOSImage, getOSName } from '@/utils/osImageHelper'
 import { getFlagSrc, getRegionDisplayName } from '@/utils/regionHelper'
 import { getBillingCycleText, getExpireText, getExpireTextClass } from '@/utils/tagHelper'
@@ -265,8 +265,12 @@ const trafficProgressStyle = computed(() => ({
           <span>{{ data.name }}</span>
         </div>
         <Badge :variant="data.online ? 'default' : 'destructive'" class="text-xs !rounded">
-          {{ data.online ? '在线' : '离线' }}
+          {{ data.online ? '在线' : formatOfflineTime(data) }}
         </Badge>
+      </div>
+
+      <div v-if="data.public_remark" class="px-4 text-sm text-muted-foreground -mt-2">
+        {{ data.public_remark }}
       </div>
 
       <div class="px-4 grid grid-cols-2 gap-4 lg:grid-cols-4">

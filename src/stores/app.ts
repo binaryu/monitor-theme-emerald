@@ -3,6 +3,7 @@ import type { ByteDecimalsConfig } from '@/utils/helper'
 import { usePreferredDark, useStorageAsync } from '@vueuse/core'
 import { defineStore } from 'pinia'
 import { computed, ref, watch } from 'vue'
+import { safeStorage } from '@/utils/storage'
 
 export type ThemeMode = 'auto' | 'light' | 'dark'
 type Lang = 'zh-CN' | 'en-US'
@@ -30,11 +31,11 @@ function isValidEarthViewMode(value: unknown): value is EarthViewMode {
 const useAppStore = defineStore('app', () => {
   const loading = ref<boolean>(true)
 
-  // 使用 VueUse 的 useStorageAsync 实现自动持久化
-  const themeMode = useStorageAsync<ThemeMode>('themeMode', 'auto', localStorage)
+  // 使用 VueUse 的 useStorageAsync 搭配 safeStorage 实现自动持久化（防 SecurityError）
+  const themeMode = useStorageAsync<ThemeMode>('themeMode', 'auto', safeStorage)
   const lang = ref<Lang>('zh-CN')
   const publicSettings = ref<PublicSettings>()
-  const nodeSelectedGroup = useStorageAsync<string>('nodeSelectedGroup', 'all', localStorage)
+  const nodeSelectedGroup = useStorageAsync<string>('nodeSelectedGroup', 'all', safeStorage)
   const isLoggedIn = ref<boolean>(false)
   const connectionError = ref<boolean>(false)
 
@@ -42,7 +43,16 @@ const useAppStore = defineStore('app', () => {
   const homeScrollPosition = ref<number>(0)
 
   // 使用 null 表示未设置，等待主题配置加载后决定
-  const storedViewMode = useStorageAsync<NodeViewMode | null>('nodeViewMode', null, localStorage)
+  const storedViewMode = useStorageAsync<NodeViewMode | null>('nodeViewMode', null, safeStorage)
+
+  // 保留历史天数（/api/me 返回 history_days，旧版没有时按 7 天）
+  const historyDays = computed<number>(() => {
+    const days = publicSettings.value?.history_days
+    if (typeof days === 'number' && Number.isFinite(days) && days > 0) {
+      return days
+    }
+    return 7
+  })
 
   // 计算属性：从主题配置获取默认视图模式
   const defaultViewMode = computed<NodeViewMode>(() => {
@@ -384,6 +394,7 @@ const useAppStore = defineStore('app', () => {
     backgroundBlur,
     backgroundOverlay,
     isLoggedIn,
+    historyDays,
     publicSettings,
     connectionError,
     homeScrollPosition,

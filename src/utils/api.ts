@@ -19,6 +19,7 @@ export interface PublicSettings {
   sitename: string
   authed: boolean
   public: boolean
+  history_days?: number
   theme_settings?: Record<string, unknown>
 }
 
@@ -52,6 +53,7 @@ export interface MonitorNode {
   country: string
   group?: string
   last_seen: number
+  last_seen_ago?: number | null
   metrics: Metrics | null
   os: string
   kernel: string
@@ -85,6 +87,7 @@ export interface MonitorNode {
   ipv6?: string
   addresses?: { address: string, source?: string }[]
   remark?: string
+  public_remark?: string
 }
 
 export interface NodesResponse {
@@ -94,12 +97,18 @@ export interface NodesResponse {
 export interface MetricsPoint {
   ts: number
   cpu: number
+  cpu_max?: number
   mem_used: number
+  swap_used?: number
   disk_used: number
   net_rx: number
   net_tx: number
   net_rx_max?: number
   net_tx_max?: number
+  tcp?: number
+  udp?: number
+  procs?: number
+  minutes?: number
 }
 
 export interface PingPoint {
@@ -111,6 +120,7 @@ export interface PingPoint {
 }
 
 export interface NodeMetricsResponse {
+  step?: number
   metrics?: MetricsPoint[]
   ping?: PingPoint[]
   probes?: Record<string, string>
@@ -142,7 +152,10 @@ export async function api<T>(path: string, init?: RequestInit): Promise<T> {
       headers: init?.body ? { 'content-type': 'application/json', ...init?.headers } : init?.headers,
     })
   }
-  catch {
+  catch (err: unknown) {
+    if (err instanceof DOMException && err.name === 'AbortError') {
+      throw err
+    }
     throw new ApiError(0, '网络连接失败，稍后再试')
   }
   if (!res.ok)
@@ -155,13 +168,13 @@ export async function api<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 /** 获取当前站点状态和用户信息 */
-export function getMe(): Promise<MeResponse> {
-  return api<MeResponse>('/me')
+export function getMe(signal?: AbortSignal): Promise<MeResponse> {
+  return api<MeResponse>('/me', { signal })
 }
 
 /** 获取全部节点信息 */
-export function getNodes(): Promise<NodesResponse> {
-  return api<NodesResponse>('/nodes')
+export function getNodes(signal?: AbortSignal): Promise<NodesResponse> {
+  return api<NodesResponse>('/nodes', { signal })
 }
 
 /** 获取指定节点的历史指标与延迟记录 */
@@ -245,16 +258,19 @@ export async function saveThemeConfig(values: Record<string, unknown>): Promise<
 
 /** 校验节点数据完整性，防止异常节点导致页面白屏 */
 export function safeNodes(nodes: MonitorNode[]): MonitorNode[] {
-  const number = (v: unknown) => typeof v === 'number' && Number.isFinite(v) && v >= 0
-  const fields = [
+  const isNonNegNum = (v: unknown) => typeof v === 'number' && Number.isFinite(v) && v >= 0
+  const requiredFields = [
     'uptime',
     'cpu',
     'mem_total',
     'mem_used',
-    'swap_total',
-    'swap_used',
     'disk_total',
     'disk_used',
+  ] as const
+
+  const optionalFields = [
+    'swap_total',
+    'swap_used',
     'net_rx',
     'net_tx',
     'total_rx',
@@ -268,7 +284,14 @@ export function safeNodes(nodes: MonitorNode[]): MonitorNode[] {
 
   return nodes.map((node) => {
     const m = node.metrics
-    return !m || (fields.every(key => number(m[key])) && Array.isArray(m.load) && m.load.length === 3 && m.load.every(number))
+    if (!m)
+      return node
+
+    const requiredValid = requiredFields.every(key => isNonNegNum(m[key]))
+    const optionalValid = optionalFields.every(key => m[key] === undefined || m[key] === null || isNonNegNum(m[key]))
+    const loadValid = !m.load || (Array.isArray(m.load) && m.load.every(v => typeof v === 'number' && Number.isFinite(v)))
+
+    return requiredValid && optionalValid && loadValid
       ? node
       : { ...node, metrics: null }
   })

@@ -22,6 +22,7 @@ export interface StatusRecord {
   client: string
   time: string
   cpu: number
+  cpu_peak?: number
   gpu: number
   ram: number
   ram_total: number
@@ -40,6 +41,8 @@ export interface StatusRecord {
   process: number
   connections: number
   connections_udp: number
+  minutes?: number
+  step?: number
 }
 
 const props = defineProps<{
@@ -50,8 +53,8 @@ const appStore = useAppStore()
 const { pickSurfaceClass } = useBackgroundSurface()
 const nodesStore = useNodesStore()
 
-// 记录保留时间：匿名上限 168h，登录后 2160h
-const maxRecordPreserveTime = computed(() => (appStore.isLoggedIn ? 2160 : 168))
+// 记录保留时间：按 hub 的保留天数 history_days 生成，登录与匿名相同（旧 hub 无此字段时按 7 天）
+const maxRecordPreserveTime = computed(() => appStore.historyDays * 24)
 
 // 从 publicSettings.theme_settings 获取数据更新间隔（秒），默认 3 秒
 const dataUpdateInterval = computed(() => {
@@ -128,15 +131,18 @@ const baseTooltipConfig = computed(() => ({
 const chartMargin = { top: 30, right: 24, bottom: 32, left: 56 }
 const chartMarginWithLegend = { top: 30, right: 24, bottom: 52, left: 56 }
 
-// 视图选项（与 PingChart 对齐，实时仅负载图有；60/90 天仅在实际保留时间足够时显示）
+// 视图选项（与 PingChart 对齐，实时仅负载图有；根据 history_days 生成时间范围）
 const presetViews = [
   { label: '1 小时', hours: 1 },
   { label: '6 小时', hours: 6 },
   { label: '1 天', hours: 24 },
   { label: '7 天', hours: 168 },
+  { label: '14 天', hours: 336 },
   { label: '30 天', hours: 720 },
   { label: '60 天', hours: 1440 },
   { label: '90 天', hours: 2160 },
+  { label: '180 天', hours: 4320 },
+  { label: '365 天', hours: 8760 },
 ]
 
 // 可用视图列表
@@ -191,6 +197,7 @@ function statusToRecordFormat(records: StatusRecord[]): RecordFormat[] {
     client: r.client,
     time: r.time,
     cpu: r.cpu ?? null,
+    cpu_peak: r.cpu_peak ?? null,
     gpu: r.gpu ?? null,
     gpu_usage: null,
     gpu_memory: null,
@@ -211,19 +218,22 @@ function statusToRecordFormat(records: StatusRecord[]): RecordFormat[] {
     process: r.process ?? null,
     connections: r.connections ?? null,
     connections_udp: r.connections_udp ?? null,
+    minutes: r.minutes ?? null,
+    step: r.step ?? null,
   }))
 }
 
-function convertMetricsToStatusRecords(metrics: MetricsPoint[]): StatusRecord[] {
+function convertMetricsToStatusRecords(metrics: MetricsPoint[], step?: number): StatusRecord[] {
   const node = nodesStore.nodes.find(n => n.uuid === props.uuid)
   return metrics.map(p => ({
     client: props.uuid,
     time: new Date(p.ts * 1000).toISOString(),
     cpu: p.cpu,
+    cpu_peak: p.cpu_max,
     gpu: 0,
     ram: p.mem_used,
     ram_total: node?.ram_total || node?.mem_total || 0,
-    swap: 0,
+    swap: p.swap_used ?? 0,
     swap_total: node?.swap_total || 0,
     load: 0,
     temp: 0,
@@ -235,11 +245,15 @@ function convertMetricsToStatusRecords(metrics: MetricsPoint[]): StatusRecord[] 
     net_out_peak: p.net_tx_max,
     net_total_up: 0,
     net_total_down: 0,
-    process: 0,
-    connections: 0,
-    connections_udp: 0,
+    process: p.procs != null ? Math.round(p.procs) : 0,
+    connections: p.tcp != null ? Math.round(p.tcp) : 0,
+    connections_udp: p.udp != null ? Math.round(p.udp) : 0,
+    minutes: p.minutes,
+    step,
   }))
 }
+
+const currentResponseStep = ref<number | undefined>()
 
 async function fetchChartMetrics(hours: number) {
   if (!props.uuid)
@@ -253,7 +267,8 @@ async function fetchChartMetrics(hours: number) {
   try {
     const res = await getNodeMetrics(props.uuid, { hours, series: 'metrics' })
     const list = res.metrics || []
-    remoteData.value = convertMetricsToStatusRecords(list)
+    currentResponseStep.value = res.step
+    remoteData.value = convertMetricsToStatusRecords(list, res.step)
   }
   catch (err) {
     error.value = err instanceof Error ? err.message : '获取数据失败'
@@ -287,7 +302,11 @@ const chartData = computed(() => {
   let intervalSec: number
   let maxGap: number
 
-  if (hours <= 4) {
+  if (currentResponseStep.value && currentResponseStep.value > 0) {
+    intervalSec = currentResponseStep.value
+    maxGap = intervalSec * 2
+  }
+  else if (hours <= 4) {
     intervalSec = minute
     maxGap = minute * 2
   }
@@ -372,11 +391,14 @@ const baseYAxisConfig = computed(() => ({
 
 // ==================== 图表配置 ====================
 
+// 是否存在 CPU 峰值数据（长时间段聚合时，hub 会返回每个区间的最高 CPU 占用）
+const hasCpuPeak = computed(() => chartData.value.some(r => r.cpu_peak != null))
+
 // CPU 图表
 const cpuChartOption = computed(() => ({
   animation: false,
   // 全局颜色配置（确保 Tooltip 圆点颜色与线条一致）
-  color: [chartColors.primary, chartColors.secondary],
+  color: [chartColors.primary, chartColors.primary, chartColors.secondary],
   tooltip: {
     ...baseTooltipConfig.value,
     formatter: (params: unknown) => {
@@ -391,13 +413,22 @@ const cpuChartOption = computed(() => ({
         return ''
 
       const timeStr = formatTimeForTooltip(record.time, selectedHours.value || 1)
-      let html = `<div style="font-weight:600;margin-bottom:6px;color:${chartThemeColors.value.textSecondary}">${timeStr}</div>`
+      let sampleInfo = ''
+      if (record.minutes != null && record.step != null && record.minutes < Math.floor(record.step / 60)) {
+        sampleInfo = ` <span style="font-size:11px;opacity:0.75;font-weight:normal">(${record.minutes}m 采样)</span>`
+      }
+      let html = `<div style="font-weight:600;margin-bottom:6px;color:${chartThemeColors.value.textSecondary}">${timeStr}${sampleInfo}</div>`
       html += '<div style="display:flex;flex-direction:column;gap:4px">'
 
       for (const item of p) {
+        if (item.value == null)
+          continue
         const colorDot = `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${item.color};margin-right:8px;flex-shrink:0"></span>`
         if (item.seriesName === 'CPU') {
           html += `<div style="display:flex;align-items:center">${colorDot}<span>CPU</span><span style="margin-left:auto;font-weight:600;margin-left:16px">${item.value?.toFixed(1) ?? '-'}%</span></div>`
+        }
+        else if (item.seriesName === 'CPU 峰值') {
+          html += `<div style="display:flex;align-items:center">${colorDot}<span>CPU 峰值</span><span style="margin-left:auto;font-weight:600;margin-left:16px">${item.value?.toFixed(1) ?? '-'}%</span></div>`
         }
         else if (item.seriesName === '负载') {
           html += `<div style="display:flex;align-items:center">${colorDot}<span>系统负载</span><span style="margin-left:auto;font-weight:600;margin-left:16px">${item.value?.toFixed(2) ?? '-'}</span></div>`
@@ -407,7 +438,18 @@ const cpuChartOption = computed(() => ({
       return html
     },
   },
-  grid: chartMargin,
+  legend: hasCpuPeak.value
+    ? {
+        data: ['CPU', 'CPU 峰值', '负载'],
+        bottom: 4,
+        itemWidth: 12,
+        itemHeight: 12,
+        itemGap: 20,
+        icon: 'roundRect',
+        textStyle: { fontSize: 11, color: chartThemeColors.value.textSecondary },
+      }
+    : undefined,
+  grid: hasCpuPeak.value ? chartMarginWithLegend : chartMargin,
   xAxis: baseXAxisConfig.value,
   yAxis: [
     {
@@ -431,7 +473,6 @@ const cpuChartOption = computed(() => ({
       name: 'CPU',
       type: 'line',
       data: chartData.value.map(r => r.cpu),
-
       showSymbol: false,
       yAxisIndex: 0,
       lineStyle: { width: 1.5, color: chartColors.primary, cap: 'round' as const },
@@ -449,11 +490,22 @@ const cpuChartOption = computed(() => ({
         },
       },
     },
+    ...(hasCpuPeak.value
+      ? [
+          {
+            name: 'CPU 峰值',
+            type: 'line',
+            data: chartData.value.map(r => r.cpu_peak),
+            showSymbol: false,
+            yAxisIndex: 0,
+            lineStyle: { width: 1, type: 'dashed' as const, opacity: 0.6, color: chartColors.primary, cap: 'round' as const },
+          },
+        ]
+      : []),
     {
       name: '负载',
       type: 'line',
       data: chartData.value.map(r => r.load),
-
       showSymbol: false,
       yAxisIndex: 1,
       lineStyle: { width: 1.5, color: chartColors.secondary, cap: 'round' as const },

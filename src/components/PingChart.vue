@@ -47,22 +47,25 @@ const chartColors = [
   '#FB923C', // 橙色
 ]
 
-// 记录保留时间：匿名上限 168h，登录后 2160h
-const maxPingRecordPreserveTime = computed(() => (appStore.isLoggedIn ? 2160 : 168))
+// 记录保留时间：按 hub 的保留天数 history_days 生成，登录与匿名相同（旧 hub 无此字段时按 7 天）
+const maxPingRecordPreserveTime = computed(() => appStore.historyDays * 24)
 
 // 与 HISTORY_MAX_POINTS 对齐
 const HISTORY_MAX_POINTS = 700
 
-// 视图选项（与 LoadChart 对齐，12 小时仅网络图有；60/90 天仅在实际保留时间足够时显示）
+// 视图选项（根据 history_days 生成时间范围）
 const presetViews = [
   { label: '1 小时', hours: 1 },
   { label: '6 小时', hours: 6 },
   { label: '12 小时', hours: 12 },
   { label: '1 天', hours: 24 },
   { label: '7 天', hours: 168 },
+  { label: '14 天', hours: 336 },
   { label: '30 天', hours: 720 },
   { label: '60 天', hours: 1440 },
   { label: '90 天', hours: 2160 },
+  { label: '180 天', hours: 4320 },
+  { label: '365 天', hours: 8760 },
 ]
 
 // 可用视图列表

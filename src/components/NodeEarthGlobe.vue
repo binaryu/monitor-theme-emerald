@@ -389,8 +389,13 @@ function stopGlobe() {
   if (canvasRef.value && containerRef.value) {
     const cobeWrapper = canvasRef.value.parentElement
     if (cobeWrapper && cobeWrapper !== containerRef.value) {
-      containerRef.value.appendChild(canvasRef.value)
-      cobeWrapper.remove()
+      if (cobeWrapper.parentElement) {
+        cobeWrapper.replaceWith(canvasRef.value)
+      }
+      else {
+        containerRef.value.prepend(canvasRef.value)
+        cobeWrapper.remove()
+      }
     }
   }
 }
@@ -495,14 +500,14 @@ function formatRate(bytesPerSec: number): string {
   <div ref="containerRef" class="relative aspect-square w-full max-w-md mx-auto -translate-y-6 md:-translate-y-12">
     <canvas
       ref="canvasRef"
-      class="earth-globe-canvas absolute inset-0 w-full h-full select-none touch-none cursor-grab active:cursor-grabbing"
+      class="earth-globe-canvas absolute inset-0 z-0 w-full h-full select-none touch-none cursor-grab active:cursor-grabbing"
       @pointerdown="onPointerDown" @pointermove="onPointerMove" @pointerup="onPointerUp" @pointercancel="onPointerUp"
     />
 
     <template v-for="cluster in regionClusters" :key="cluster.code">
       <div
         :ref="bindClusterOverlayRef(cluster.code)"
-        class="absolute -top-7.5 left-0 pointer-events-none rounded backdrop-blur transition-[opacity,filter] duration-500"
+        class="absolute z-10 -top-7.5 left-0 pointer-events-none rounded backdrop-blur transition-[opacity,filter] duration-500"
       >
         <img
           :src="`/assets/flags/${cluster.code}.svg`" :alt="cluster.code"
@@ -521,7 +526,7 @@ function formatRate(bytesPerSec: number): string {
 
     <div
       v-if="totalServers > 0"
-      class="absolute top-6 md:top-12 left-0 text-[10px] text-muted-foreground pointer-events-none flex gap-2 items-center backdrop-blur-lg bg-background/60 rounded px-2 py-0.5"
+      class="absolute z-10 top-6 md:top-12 left-0 text-[10px] text-muted-foreground pointer-events-none flex gap-2 items-center backdrop-blur-lg bg-background/60 rounded px-2 py-0.5"
     >
       <div v-if="onlineServers > 0" class="flex items-center gap-1">
         <span class="inline-block size-1.5 rounded-full bg-green-600 animate-pulse" />

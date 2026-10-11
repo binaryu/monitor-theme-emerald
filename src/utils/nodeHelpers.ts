@@ -69,7 +69,39 @@ export function getCustomTags(node: NodeData): string[] {
   return parseTags(node.tags).map(t => t.text)
 }
 
+/**
+ * 格式化离线时长（按 hub 时钟计算的秒数 last_seen_ago）
+ * - null: 从未上报
+ * - 数值: 不足 1 分钟 / N 分钟 / N 小时 / N 天
+ */
+export function formatOfflineDuration(lastSeenAgo: number | null | undefined): string {
+  if (lastSeenAgo === null)
+    return '从未上报'
+  if (lastSeenAgo === undefined || Number.isNaN(lastSeenAgo))
+    return '离线'
+  if (lastSeenAgo < 60)
+    return '不足 1 分钟'
+
+  const minutes = Math.floor(lastSeenAgo / 60)
+  if (minutes < 60)
+    return `${minutes} 分钟`
+
+  const hours = Math.floor(minutes / 60)
+  const remMinutes = minutes % 60
+  if (hours < 24) {
+    return remMinutes > 0 ? `${hours} 小时 ${remMinutes} 分钟` : `${hours} 小时`
+  }
+
+  const days = Math.floor(hours / 24)
+  const remHours = hours % 24
+  return remHours > 0 ? `${days} 天 ${remHours} 小时` : `${days} 天`
+}
+
 export function formatOfflineTime(node: NodeData): string {
+  if (node.last_seen_ago === null)
+    return '从未上报'
+  if (typeof node.last_seen_ago === 'number')
+    return `离线 ${formatOfflineDuration(node.last_seen_ago)}`
   return formatDateTime(node.time)
 }
 

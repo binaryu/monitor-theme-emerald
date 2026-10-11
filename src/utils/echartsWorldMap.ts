@@ -1,6 +1,7 @@
 import { registerMap } from 'echarts/core'
 import { fetchWithTimeout } from '@/utils/financeHelper'
 import { emojiToRegionMap } from '@/utils/regionHelper'
+import { safeStorage } from '@/utils/storage'
 
 type WorldGeoJson = Exclude<
   Parameters<typeof registerMap>[1],
@@ -91,13 +92,13 @@ function readCachedWorldGeoJson(): WorldGeoJson | null {
     return null
 
   try {
-    const raw = window.localStorage.getItem(WORLD_MAP_CACHE_KEY)
+    const raw = safeStorage.getItem(WORLD_MAP_CACHE_KEY)
     if (!raw)
       return null
 
     const parsed = JSON.parse(raw) as { data?: unknown }
     if (!isValidWorldGeoJson(parsed.data)) {
-      window.localStorage.removeItem(WORLD_MAP_CACHE_KEY)
+      safeStorage.removeItem(WORLD_MAP_CACHE_KEY)
       return null
     }
 
@@ -113,7 +114,7 @@ function writeCachedWorldGeoJson(worldGeoJson: WorldGeoJson): void {
     return
 
   try {
-    window.localStorage.setItem(
+    safeStorage.setItem(
       WORLD_MAP_CACHE_KEY,
       JSON.stringify({
         buildHash: __BUILD_GIT_HASH__,

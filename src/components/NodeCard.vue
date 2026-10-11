@@ -11,7 +11,7 @@ import { useNodeFormatters } from '@/composables/useNodeFormatters'
 import { useNodePingDisplay } from '@/composables/useNodePingDisplay'
 import { useAppStore } from '@/stores/app'
 import { formatDateTime, getStatus } from '@/utils/helper'
-import { getCustomTags, getDiskPercentage, getMemPercentage, getPriceTags, getRemainingTimeTagClass, getTrafficUsed, getTrafficUsedPercentage, hasRegion, showTrafficProgress } from '@/utils/nodeHelpers'
+import { formatOfflineDuration, getCustomTags, getDiskPercentage, getMemPercentage, getPriceTags, getRemainingTimeTagClass, getTrafficUsed, getTrafficUsedPercentage, hasRegion, showTrafficProgress } from '@/utils/nodeHelpers'
 import { getOSImage, getOSName } from '@/utils/osImageHelper'
 import { getFlagSrc, getRegionDisplayName } from '@/utils/regionHelper'
 
@@ -26,7 +26,13 @@ const appStore = useAppStore()
 const { pickSurfaceClass } = useBackgroundSurface()
 const { formatBytes, formatBytesPerSecond, formatUptime } = useNodeFormatters()
 
-const offlineTime = computed(() => formatDateTime(props.node.time))
+const offlineTime = computed(() => {
+  if (props.node.last_seen_ago === null)
+    return '从未上报'
+  if (typeof props.node.last_seen_ago === 'number')
+    return formatOfflineDuration(props.node.last_seen_ago)
+  return formatDateTime(props.node.time)
+})
 const expiredDate = computed(() => formatDateTime(props.node.expired_at, 'YYYY-MM-DD'))
 
 const cpuStatus = computed(() => getStatus(props.node.cpu ?? 0))
@@ -183,7 +189,9 @@ function openPingDialog() {
             class="absolute inset-0 z-10 flex flex-col items-center justify-center space-y-1"
           >
             <span class="text-sm text-red-600">离线</span>
-            <div>{{ offlineTime }}</div>
+            <div :title="formatDateTime(props.node.time)">
+              {{ offlineTime }}
+            </div>
           </div>
           <div class="flex flex-col gap-y-2" :class="[!props.node.online && 'blur-xs opacity-60 pointer-events-none']">
             <div class="flex items-center">
@@ -304,6 +312,9 @@ function openPingDialog() {
               </div>
             </div>
           </div>
+        </div>
+        <div v-if="props.node.public_remark" class="text-[11px] text-muted-foreground/80 truncate" :title="props.node.public_remark">
+          {{ props.node.public_remark }}
         </div>
         <div v-if="customTags.length > 0" class="flex shrink-0 flex-wrap gap-1 items-center">
           <Badge

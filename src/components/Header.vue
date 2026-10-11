@@ -15,10 +15,11 @@ const isScrolled = inject<ReturnType<typeof ref<boolean>>>('isScrolled', ref(fal
 const siteFavicon = computed(() => appStore.siteIconUrl || '/favicon.svg')
 
 watchEffect(() => {
-  const icon = siteFavicon.value
-  const link = document.querySelector<HTMLLinkElement>('link[rel~=\'icon\']')
-  if (link) {
-    link.href = icon
+  if (appStore.siteIconUrl) {
+    const link = document.querySelector<HTMLLinkElement>('link[rel~=\'icon\']')
+    if (link) {
+      link.href = appStore.siteIconUrl
+    }
   }
 })
 

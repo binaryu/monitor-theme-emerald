@@ -88,6 +88,8 @@ function isNodeMatchSearch(node: typeof nodesStore.nodes[number], search: string
     return true
   if (node.remark && node.remark.toLowerCase().includes(lowerSearch))
     return true
+  if (node.public_remark && node.public_remark.toLowerCase().includes(lowerSearch))
+    return true
   return false
 }
 

@@ -1,4 +1,5 @@
 import type { NodeData } from '@/stores/nodes'
+import { safeStorage } from '@/utils/storage'
 
 const FINANCE_CURRENCY_CONFIG = {
   AUD: { rate: 0.20941, symbol: 'A$' },
@@ -329,6 +330,30 @@ export function formatFinanceAmount(amount: number, currency: CurrencyCode): {
   }
 }
 
+/**
+ * 使用 Intl.NumberFormat 格式化货币，安全捕获旧版本非标准代码抛出的异常
+ */
+export function formatCurrencyWithIntl(
+  amount: number,
+  currency: string = 'CNY',
+  locale = 'zh-CN',
+): string {
+  const safeAmount = Number.isFinite(amount) ? amount : 0
+  const raw = (currency || 'CNY').trim()
+  try {
+    return new Intl.NumberFormat(locale, {
+      style: 'currency',
+      currency: raw.toUpperCase(),
+      maximumFractionDigits: 2,
+    }).format(safeAmount)
+  }
+  catch {
+    const code = normalizeCurrency(raw)
+    const symbol = CURRENCY_SYMBOLS[code] || raw
+    return `${symbol}${safeAmount}`
+  }
+}
+
 export async function getDailyExchangeRates(): Promise<{
   rates: ExchangeRates
   source: ExchangeRateSource
@@ -477,7 +502,7 @@ function sanitizeExchangeRates(rates: unknown): ExchangeRates | null {
 
 function getLocalStorageItem(key: string): string | null {
   try {
-    return localStorage.getItem(key)
+    return safeStorage.getItem(key)
   }
   catch {
     return null
@@ -486,7 +511,7 @@ function getLocalStorageItem(key: string): string | null {
 
 function setLocalStorageItem(key: string, value: string): void {
   try {
-    localStorage.setItem(key, value)
+    safeStorage.setItem(key, value)
   }
   catch {
     // 缓存失败不应阻断价值计算，下一次刷新会重新尝试获取汇率。

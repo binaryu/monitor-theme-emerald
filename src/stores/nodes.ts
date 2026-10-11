@@ -33,6 +33,7 @@ export interface NodeData {
   region: string
   remark?: string
   public_remark: string
+  last_seen_ago?: number | null
   mem_total: number
   swap_total: number
   disk_total: number
@@ -147,7 +148,8 @@ export function convertMonitorNodeToNodeData(node: MonitorNode): NodeData {
     ipv6: addrs.ipv6,
     region: node.country || '',
     remark: node.remark,
-    public_remark: node.remark || '',
+    public_remark: node.public_remark || node.remark || '',
+    last_seen_ago: node.last_seen_ago !== undefined ? node.last_seen_ago : null,
     mem_total: m?.mem_total ?? node.mem_total ?? 0,
     swap_total: m?.swap_total ?? node.swap_total ?? 0,
     disk_total: m?.disk_total ?? node.disk_total ?? 0,

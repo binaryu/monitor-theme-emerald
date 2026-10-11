@@ -10,6 +10,7 @@ export interface RecordFormat {
   client: string
   time: string
   cpu: number | null
+  cpu_peak?: number | null
   gpu: number | null
   gpu_usage: number | null
   gpu_memory: number | null
@@ -42,6 +43,8 @@ export interface RecordFormat {
   process: number | null
   connections: number | null
   connections_udp: number | null
+  minutes?: number | null
+  step?: number | null
 }
 
 type AnyRecord = Record<string, any>

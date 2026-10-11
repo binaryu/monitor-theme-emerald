@@ -362,13 +362,25 @@ export function parseTags(tags: string | undefined): Array<{ text: string, color
  * @returns 价格显示文本
  */
 export function formatPrice(price: number, currency: string = 'CNY', lang: 'zh-CN' | 'en-US' = 'zh-CN'): string {
-  if (price === 0)
+  if (price === 0 || price === -1)
     return lang === 'zh-CN' ? '免费' : 'Free'
-  if (price === -1)
-    return lang === 'zh-CN' ? '免费' : 'Free'
-  const code = normalizeCurrency(currency)
-  const symbol = CURRENCY_SYMBOLS[code]
-  return `${symbol}${price}`
+
+  const safePrice = Number.isFinite(price) ? price : 0
+  const rawCurrency = (currency || 'CNY').trim()
+
+  // hub 1.3.1 起货币是三个大写字母，更早版本可能不是；使用 Intl.NumberFormat 的 currency 格式化时兜住抛出的错误
+  try {
+    return new Intl.NumberFormat(lang === 'zh-CN' ? 'zh-CN' : 'en-US', {
+      style: 'currency',
+      currency: rawCurrency.toUpperCase(),
+      maximumFractionDigits: 2,
+    }).format(safePrice)
+  }
+  catch {
+    const code = normalizeCurrency(rawCurrency)
+    const symbol = CURRENCY_SYMBOLS[code] || rawCurrency
+    return `${symbol}${safePrice}`
+  }
 }
 
 /**

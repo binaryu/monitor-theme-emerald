@@ -197,6 +197,9 @@ function getRowTransitionStyle(index: number): Record<string, string> {
                   >
                   <span class="truncate">{{ node.name }}</span>
                 </div>
+                <div v-if="node.public_remark" class="text-[11px] text-muted-foreground/80 truncate max-w-xs" :title="node.public_remark">
+                  {{ node.public_remark }}
+                </div>
                 <div class="flex flex-row text-[11px] text-muted-foreground/70">
                   <DataTooltip
                     v-if="node.online" :content="formatUptime(node.uptime ?? 0)" class="shrink-0" placement="right"
@@ -376,7 +379,7 @@ function getRowTransitionStyle(index: number): Record<string, string> {
                 <div class="text-sm font-semibold truncate">
                   <span class="text-red-500">离线</span> {{ node.name }}
                 </div>
-                <div class="text-xs text-muted-foreground">
+                <div class="text-xs text-muted-foreground" :title="formatDateTime(node.time)">
                   {{ formatOfflineTime(node) }}
                 </div>
               </div>
