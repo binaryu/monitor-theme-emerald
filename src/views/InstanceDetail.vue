@@ -185,6 +185,13 @@ const hardwareInfo = computed<InfoItem[]>(() => [
 const systemInfo = computed<InfoItem[]>(() => [
   { label: '操作系统', value: data.value?.os ?? '-', icon: 'icon-park-outline:computer' },
   { label: '内核版本', value: data.value?.kernel_version ?? '-', icon: 'icon-park-outline:code' },
+  {
+    label: '系统负载',
+    value: data.value && (data.value.load != null || data.value.load5 != null || data.value.load15 != null)
+      ? `${(data.value.load ?? 0).toFixed(2)}, ${(data.value.load5 ?? 0).toFixed(2)}, ${(data.value.load15 ?? 0).toFixed(2)}`
+      : '-',
+    icon: 'icon-park-outline:chart-line',
+  },
   { label: '运行时间', value: formatUptime(data.value?.uptime ?? 0, 'minute'), icon: 'icon-park-outline:timer' },
   { label: '最后上报', value: formatDateTime(data.value?.time), icon: 'icon-park-outline:time' },
 ])
@@ -330,8 +337,9 @@ const trafficProgressStyle = computed(() => ({
         >
           <div class="gap-3 grid grid-cols-1 sm:grid-cols-2">
             <div
-              v-for="item in systemInfo" :key="item.label"
+              v-for="(item, index) in systemInfo" :key="item.label"
               class="min-w-0 flex flex-col gap-1 rounded-sm bg-slate-500/5 p-2"
+              :class="!index && 'sm:col-span-2'"
             >
               <div class="flex gap-1 items-center text-muted-foreground">
                 <Icon v-if="item.icon" :icon="item.icon" :width="14" :height="14" />

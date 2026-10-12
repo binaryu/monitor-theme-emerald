@@ -28,7 +28,7 @@ export interface StatusRecord {
   ram_total: number
   swap: number
   swap_total: number
-  load: number
+  load: number | null
   temp: number
   disk: number
   disk_total: number
@@ -235,7 +235,7 @@ function convertMetricsToStatusRecords(metrics: MetricsPoint[], step?: number): 
     ram_total: node?.ram_total || node?.mem_total || 0,
     swap: p.swap_used ?? 0,
     swap_total: node?.swap_total || 0,
-    load: 0,
+    load: (p as unknown as { load?: number | null }).load ?? null,
     temp: 0,
     disk: p.disk_used,
     disk_total: node?.disk_total || 0,
@@ -393,6 +393,8 @@ const baseYAxisConfig = computed(() => ({
 
 // 是否存在 CPU 峰值数据（长时间段聚合时，hub 会返回每个区间的最高 CPU 占用）
 const hasCpuPeak = computed(() => chartData.value.some(r => r.cpu_peak != null))
+// 是否存在系统负载历史数据（目前 hub 的 /api/nodes/{id}/metrics 历史明细不存储 load，仅实时快照有）
+const hasLoad = computed(() => chartData.value.some(r => r.load != null && r.load > 0))
 
 // CPU 图表
 const cpuChartOption = computed(() => ({
@@ -438,9 +440,13 @@ const cpuChartOption = computed(() => ({
       return html
     },
   },
-  legend: hasCpuPeak.value
+  legend: (hasCpuPeak.value || hasLoad.value)
     ? {
-        data: ['CPU', 'CPU 峰值', '负载'],
+        data: [
+          'CPU',
+          ...(hasCpuPeak.value ? ['CPU 峰值'] : []),
+          ...(hasLoad.value ? ['负载'] : []),
+        ],
         bottom: 4,
         itemWidth: 12,
         itemHeight: 12,
@@ -449,7 +455,7 @@ const cpuChartOption = computed(() => ({
         textStyle: { fontSize: 11, color: chartThemeColors.value.textSecondary },
       }
     : undefined,
-  grid: hasCpuPeak.value ? chartMarginWithLegend : chartMargin,
+  grid: (hasCpuPeak.value || hasLoad.value) ? chartMarginWithLegend : chartMargin,
   xAxis: baseXAxisConfig.value,
   yAxis: [
     {
@@ -460,13 +466,17 @@ const cpuChartOption = computed(() => ({
       max: 100,
       axisLabel: { ...baseYAxisConfig.value.axisLabel, formatter: '{value}%' },
     },
-    {
-      ...baseYAxisConfig.value,
-      name: '负载',
-      nameTextStyle: { color: chartThemeColors.value.textSecondary, padding: [0, 0, 0, 40] },
-      min: 0,
-      splitLine: { show: false },
-    },
+    ...(hasLoad.value
+      ? [
+          {
+            ...baseYAxisConfig.value,
+            name: '负载',
+            nameTextStyle: { color: chartThemeColors.value.textSecondary, padding: [0, 0, 0, 40] },
+            min: 0,
+            splitLine: { show: false },
+          },
+        ]
+      : []),
   ],
   series: [
     {
@@ -502,14 +512,18 @@ const cpuChartOption = computed(() => ({
           },
         ]
       : []),
-    {
-      name: '负载',
-      type: 'line',
-      data: chartData.value.map(r => r.load),
-      showSymbol: false,
-      yAxisIndex: 1,
-      lineStyle: { width: 1.5, color: chartColors.secondary, cap: 'round' as const },
-    },
+    ...(hasLoad.value
+      ? [
+          {
+            name: '负载',
+            type: 'line',
+            data: chartData.value.map(r => r.load),
+            showSymbol: false,
+            yAxisIndex: 1,
+            lineStyle: { width: 1.5, color: chartColors.secondary, cap: 'round' as const },
+          },
+        ]
+      : []),
   ],
 }))
 
