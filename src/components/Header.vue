@@ -12,15 +12,32 @@ const appStore = useAppStore()
 
 const isScrolled = inject<ReturnType<typeof ref<boolean>>>('isScrolled', ref(false))
 
-const siteFavicon = computed(() => appStore.siteIconUrl || '/favicon.svg')
+// hub 返回页面时会把 <link rel="icon" href="/favicon.svg"> 改写成带版本号的地址，
+// 页头读它就能跟随面板里上传的站点图标，并且换图标后不会被浏览器缓存卡住
+const iconLink = document.querySelector<HTMLLinkElement>('link[rel~=\'icon\']')
+const hubFavicon = ref(iconLink?.getAttribute('href') || '/favicon.svg')
+const failedIcons = ref<string[]>([])
 
+/** 优先级：主题设置 > hub 站点图标 > /favicon.svg；加载失败的自动跳过 */
+const siteFavicon = computed(() => {
+  const candidates = [...new Set([appStore.siteIconUrl, hubFavicon.value, '/favicon.svg'])].filter(Boolean)
+  return candidates.find(url => !failedIcons.value.includes(url)) ?? ''
+})
+
+function markIconFailed() {
+  if (siteFavicon.value && !failedIcons.value.includes(siteFavicon.value))
+    failedIcons.value = [...failedIcons.value, siteFavicon.value]
+}
+
+function handleIconStatus(status: string) {
+  if (status === 'error')
+    markIconFailed()
+}
+
+// 标签页图标跟着最终生效的地址走（主题设置、或回退后的地址）
 watchEffect(() => {
-  if (appStore.siteIconUrl) {
-    const link = document.querySelector<HTMLLinkElement>('link[rel~=\'icon\']')
-    if (link) {
-      link.href = appStore.siteIconUrl
-    }
-  }
+  if (iconLink && siteFavicon.value && iconLink.getAttribute('href') !== siteFavicon.value)
+    iconLink.href = siteFavicon.value
 })
 
 const actionButtons = computed(() => {
@@ -63,7 +80,7 @@ const sitename = computed(() => appStore.publicSettings?.sitename || 'Monitor')
   >
     <div class="px-4 flex-between h-14 max-w-[1280px] mx-auto">
       <div class="flex items-center gap-3 cursor-pointer" @click="router.push('/')">
-        <div v-if="!appStore.siteIconUrl" class="size-8 flex items-center justify-center">
+        <div v-if="!siteFavicon" class="size-8 flex items-center justify-center">
           <svg
             xmlns="http://www.w3.org/2000/svg"
             viewBox="0 0 32 32"
@@ -75,7 +92,10 @@ const sitename = computed(() => appStore.publicSettings?.sitename || 'Monitor')
           </svg>
         </div>
         <Avatar v-else class="size-8">
-          <AvatarImage :src="siteFavicon" :alt="sitename" />
+          <AvatarImage
+            :key="siteFavicon" :src="siteFavicon" :alt="sitename"
+            @error="markIconFailed" @loading-status-change="handleIconStatus"
+          />
           <AvatarFallback>{{ sitename.slice(0, 1) }}</AvatarFallback>
         </Avatar>
         <h3 class="m-0 text-lg font-semibold">

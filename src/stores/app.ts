@@ -3,6 +3,7 @@ import type { ByteDecimalsConfig } from '@/utils/helper'
 import { usePreferredDark, useStorageAsync } from '@vueuse/core'
 import { defineStore } from 'pinia'
 import { computed, ref, watch } from 'vue'
+import { resolveSiteIconSetting } from '@/utils/siteIconHelper'
 import { safeStorage } from '@/utils/storage'
 
 export type ThemeMode = 'auto' | 'light' | 'dark'
@@ -135,13 +136,7 @@ const useAppStore = defineStore('app', () => {
 
   const siteIconUrl = computed<string>(() => {
     const settings = publicSettings.value?.theme_settings
-    if (settings && typeof settings.siteIconUrl === 'string') {
-      const trimmed = settings.siteIconUrl.trim()
-      if (trimmed.length > 0) {
-        return trimmed
-      }
-    }
-    return ''
+    return resolveSiteIconSetting(settings?.siteIconUrl)
   })
 
   const visitorInfoCardEnabled = computed<boolean>(() => {
