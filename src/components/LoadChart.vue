@@ -2,7 +2,7 @@
 import type { MetricsPoint } from '@/utils/api'
 import type { RecordFormat } from '@/utils/recordHelper'
 import { Icon } from '@iconify/vue'
-import { useIntervalFn } from '@vueuse/core'
+import { useDocumentVisibility, useIntervalFn } from '@vueuse/core'
 import dayjs from 'dayjs'
 import { computed, onMounted, ref, shallowRef, watch } from 'vue'
 import VChart from 'vue-echarts'
@@ -921,10 +921,15 @@ const { pause: pauseRealtimeUpdate, resume: resumeRealtimeUpdate } = useInterval
   { immediate: false },
 )
 
-// 根据是否为实时模式控制定时器
-watch(isRealtime, (realtime) => {
-  if (realtime) {
+// 实时模式才轮询；页面在后台时停掉（文档要求：页面隐藏时停掉轮询，切回前台立即补一次）。
+// 首次加载由 onMounted 负责，切换时间范围由下面的 selectedView 监听负责，这里只补「切回前台」。
+const visibility = useDocumentVisibility()
+watch([isRealtime, visibility], (next, prev) => {
+  const [realtime, state] = next
+  if (realtime && state === 'visible') {
     resumeRealtimeUpdate()
+    if (prev?.[1] === 'hidden')
+      void fetchData()
   }
   else {
     pauseRealtimeUpdate()

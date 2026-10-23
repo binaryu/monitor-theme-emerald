@@ -49,6 +49,10 @@ class InitManager {
     // 监听前后台切换
     if (typeof document !== 'undefined') {
       document.addEventListener('visibilitychange', this.handleVisibilityChange)
+      // 添加到主屏幕的 iOS Web App 从后台恢复时，visibilitychange 有时不触发；
+      // WS 已经断开的话，用 pageshow / focus 兜底补一次
+      window.addEventListener('pageshow', this.handleWake)
+      window.addEventListener('focus', this.handleWake)
     }
 
     try {
@@ -301,10 +305,25 @@ class InitManager {
     }
   }
 
+  /**
+   * 兜底唤醒：页面可见但推送已经不在时（iOS 从后台恢复时常发生），立即拉一次并重连
+   */
+  private handleWake = (): void => {
+    if (this.isDestroyed || (typeof document !== 'undefined' && document.hidden))
+      return
+    if (this.socket && this.socket.readyState === WebSocket.OPEN)
+      return
+
+    this.pollOnce()
+    this.connectWebSocket()
+  }
+
   destroy(): void {
     this.isDestroyed = true
     if (typeof document !== 'undefined') {
       document.removeEventListener('visibilitychange', this.handleVisibilityChange)
+      window.removeEventListener('pageshow', this.handleWake)
+      window.removeEventListener('focus', this.handleWake)
     }
     this.stopPolling()
     this.clearReconnectTimer()

@@ -11,7 +11,7 @@ import { useBackgroundSurface } from '@/composables/useBackgroundSurface'
 import { useNodeFormatters } from '@/composables/useNodeFormatters'
 import { useAppStore } from '@/stores/app'
 import { formatDateTime, getStatus } from '@/utils/helper'
-import { formatOfflineTime, getCustomTags, getPriceTags, getRemainingTimeTagClass, getTrafficUsed, getTrafficUsedPercentage, hasRegion, showTrafficProgress } from '@/utils/nodeHelpers'
+import { formatOfflineTime, getCustomTags, getPriceTags, getRemainingTimeTagClass, getRemarkTags, getTrafficUsed, getTrafficUsedPercentage, hasRegion, showTrafficProgress } from '@/utils/nodeHelpers'
 import { getOSImage, getOSName } from '@/utils/osImageHelper'
 import { getFlagSrc, getRegionDisplayName } from '@/utils/regionHelper'
 
@@ -197,8 +197,13 @@ function getRowTransitionStyle(index: number): Record<string, string> {
                   >
                   <span class="truncate">{{ node.name }}</span>
                 </div>
-                <div v-if="node.public_remark" class="text-[11px] text-muted-foreground/80 truncate max-w-xs" :title="node.public_remark">
-                  {{ node.public_remark }}
+                <div v-if="getRemarkTags(node.public_remark).length > 0" class="flex flex-wrap gap-1 items-center">
+                  <Badge
+                    v-for="(tag, tagIndex) in getRemarkTags(node.public_remark)" :key="tagIndex" variant="outline" :title="tag"
+                    class="!text-[11px] rounded text-muted-foreground border-muted-foreground/10 px-1.5 max-w-full"
+                  >
+                    {{ tag }}
+                  </Badge>
                 </div>
                 <div class="flex flex-row text-[11px] text-muted-foreground/70">
                   <DataTooltip

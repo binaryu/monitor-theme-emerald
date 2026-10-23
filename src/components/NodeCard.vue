@@ -11,7 +11,7 @@ import { useNodeFormatters } from '@/composables/useNodeFormatters'
 import { useNodePingDisplay } from '@/composables/useNodePingDisplay'
 import { useAppStore } from '@/stores/app'
 import { formatDateTime, getStatus } from '@/utils/helper'
-import { formatOfflineDuration, getCustomTags, getDiskPercentage, getMemPercentage, getPriceTags, getRemainingTimeTagClass, getTrafficUsed, getTrafficUsedPercentage, hasRegion, showTrafficProgress } from '@/utils/nodeHelpers'
+import { formatOfflineDuration, getCustomTags, getDiskPercentage, getMemPercentage, getPriceTags, getRemainingTimeTagClass, getRemarkTags, getTrafficUsed, getTrafficUsedPercentage, hasRegion, showTrafficProgress } from '@/utils/nodeHelpers'
 import { getOSImage, getOSName } from '@/utils/osImageHelper'
 import { getFlagSrc, getRegionDisplayName } from '@/utils/regionHelper'
 
@@ -56,6 +56,8 @@ const trafficUsed = computed(() => getTrafficUsed(props.node))
 const priceTags = computed(() => getPriceTags(props.node, appStore.lang))
 const remainingTimeTagClass = computed(() => getRemainingTimeTagClass(props.node))
 const customTags = computed(() => getCustomTags(props.node))
+/** 公开备注按分号拆开，多段时显示为独立 badge */
+const remarkTags = computed(() => getRemarkTags(props.node.public_remark))
 
 function openPingDialog() {
   emit('pingClick', props.node)
@@ -313,8 +315,13 @@ function openPingDialog() {
             </div>
           </div>
         </div>
-        <div v-if="props.node.public_remark" class="text-[11px] text-muted-foreground/80 truncate" :title="props.node.public_remark">
-          {{ props.node.public_remark }}
+        <div v-if="remarkTags.length > 0" class="flex shrink-0 flex-wrap gap-1 items-center">
+          <Badge
+            v-for="(tag, index) in remarkTags" :key="index" variant="outline" :title="tag"
+            class="!text-[11px] rounded text-muted-foreground border-muted-foreground/10 px-1.5 max-w-full"
+          >
+            {{ tag }}
+          </Badge>
         </div>
         <div v-if="customTags.length > 0" class="flex shrink-0 flex-wrap gap-1 items-center">
           <Badge

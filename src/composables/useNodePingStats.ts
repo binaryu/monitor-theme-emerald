@@ -1,5 +1,5 @@
 import type { MaybeRefOrGetter } from 'vue'
-import { computed, ref, shallowRef, toValue, watch } from 'vue'
+import { computed, onScopeDispose, ref, shallowRef, toValue, watch } from 'vue'
 import { getNodeMetrics } from '@/utils/api'
 
 export interface NodePingHistoryPoint {
@@ -39,6 +39,28 @@ export interface NodePingPerTaskStat {
 export const NODE_PING_BAR_COUNT = 10
 const FULL_LOSS_EPSILON = 1e-6
 const PING_RECORD_REFRESH_INTERVAL_MS = 60_000
+
+// 同时在途的历史请求上限。浏览器对 HTTP/1.1 是每源 6 条连接，但 hub 走 HTTP/2 时不再限制并发，
+// 节点多的一次性挂载会把 N 条历史查询同时压给 hub，所以自己排队，一次最多 4 条。
+const MAX_CONCURRENT_HISTORY_REQUESTS = 4
+let activeHistoryRequests = 0
+const historyRequestQueue: Array<() => void> = []
+
+function runHistoryRequest<T>(task: () => Promise<T>): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const start = (): void => {
+      activeHistoryRequests += 1
+      task().then(resolve, reject).finally(() => {
+        activeHistoryRequests -= 1
+        historyRequestQueue.shift()?.()
+      })
+    }
+    if (activeHistoryRequests < MAX_CONCURRENT_HISTORY_REQUESTS)
+      start()
+    else
+      historyRequestQueue.push(start)
+  })
+}
 
 interface TaskRecordSummary {
   total: number
@@ -246,7 +268,7 @@ async function loadNodePingRecords(entry: NodePingEntry, uuid: string, hours: nu
 
   entry.promise = (async () => {
     try {
-      const res = await getNodeMetrics(uuid, { series: 'ping', hours, points: 60 })
+      const res = await runHistoryRequest(() => getNodeMetrics(uuid, { series: 'ping', hours, points: 60 }))
       const pingList = res.ping || []
       const probeNames = res.probes || {}
       const taskIds = [...new Set(pingList.map(p => p.task_id))]
@@ -262,7 +284,6 @@ async function loadNodePingRecords(entry: NodePingEntry, uuid: string, hours: nu
       }))
 
       entry.data.value = { records, tasks }
-      entry.lastFetchedAt = Date.now()
     }
     catch (err) {
       entry.error.value = err instanceof Error ? err.message : '获取 Ping 历史失败'
@@ -270,6 +291,9 @@ async function loadNodePingRecords(entry: NodePingEntry, uuid: string, hours: nu
     finally {
       entry.loading.value = false
       entry.promise = null
+      // 失败也要记时间：否则每一次节点快照（WS 每 2 秒一帧）都会重试一次，节点多时就是请求风暴，
+      // hub 回 429 时更会越重试越糟
+      entry.lastFetchedAt = Date.now()
     }
   })()
 
@@ -294,6 +318,12 @@ export function useNodePingStats(
 
   const cacheKey = computed(() => `${resolved.value.uuid}_${resolved.value.hours}`)
 
+  // 只监听基元值：WS 每 2 秒换一批新的节点对象，监听 computed 返回的对象会让每次换对象都重跑一次
+  const fetchKey = computed(() => {
+    const { uuid: nodeUuid, hours, enabled } = resolved.value
+    return enabled && nodeUuid.trim() ? `${nodeUuid}|${hours}` : ''
+  })
+
   const stats = computed<NodePingStatsState>(() => {
     const { uuid: nodeUuid, enabled } = resolved.value
     if (!enabled || !nodeUuid.trim())
@@ -307,28 +337,47 @@ export function useNodePingStats(
     return state.records.length ? buildStats(state.records, state.tasks) : createEmptyStats()
   })
 
-  watch(
-    resolved,
-    async (next) => {
-      const { uuid: nodeUuid, hours, enabled } = next
-      if (!enabled || !nodeUuid.trim()) {
-        loading.value = false
-        error.value = null
-        return
-      }
+  async function refresh(): Promise<void> {
+    const { uuid: nodeUuid, hours, enabled } = resolved.value
+    if (!enabled || !nodeUuid.trim()) {
+      loading.value = false
+      error.value = null
+      return
+    }
 
-      const entry = getNodePingEntry(cacheKey.value)
-      const shouldLoad = !entry.data.value
-        || Date.now() - entry.lastFetchedAt >= PING_RECORD_REFRESH_INTERVAL_MS
+    // 页面在后台时不发请求，切回前台时由 visibilitychange 补一次
+    if (typeof document !== 'undefined' && document.hidden)
+      return
 
-      if (shouldLoad) {
-        loading.value = !entry.data.value
-        await loadNodePingRecords(entry, nodeUuid, hours)
-        loading.value = false
-      }
-    },
-    { immediate: true },
-  )
+    const entry = getNodePingEntry(cacheKey.value)
+    const shouldLoad = !entry.data.value
+      || Date.now() - entry.lastFetchedAt >= PING_RECORD_REFRESH_INTERVAL_MS
+    if (!shouldLoad)
+      return
+
+    loading.value = !entry.data.value
+    await loadNodePingRecords(entry, nodeUuid, hours)
+    loading.value = false
+  }
+
+  watch(fetchKey, refresh, { immediate: true })
+
+  // 数据新鲜度靠这个定时器：页面在前台时按刷新间隔拉一次，隐藏时不发请求（refresh 内部已经跳过）。
+  // 间隔加 5 秒缓冲，免得卡在阈值边界上跳过一轮；再加一段随机抖动，各节点不会同时打满 hub。
+  if (typeof document !== 'undefined') {
+    const timer = setInterval(() => {
+      void refresh()
+    }, PING_RECORD_REFRESH_INTERVAL_MS + 5_000 + Math.random() * 15_000)
+    const onVisibilityChange = (): void => {
+      if (!document.hidden)
+        void refresh()
+    }
+    document.addEventListener('visibilitychange', onVisibilityChange)
+    onScopeDispose(() => {
+      clearInterval(timer)
+      document.removeEventListener('visibilitychange', onVisibilityChange)
+    })
+  }
 
   const perTaskStats = computed<NodePingPerTaskStat[]>(() => stats.value.perTaskStats)
 

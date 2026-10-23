@@ -70,6 +70,15 @@ export function getCustomTags(node: NodeData): string[] {
 }
 
 /**
+ * 把公开备注按分号拆成多个标签，备注里用 `;` 分隔即显示为独立 badge
+ */
+export function getRemarkTags(remark: string | undefined): string[] {
+  if (!remark)
+    return []
+  return remark.split(';').map(t => t.trim()).filter(Boolean)
+}
+
+/**
  * 格式化离线时长（按 hub 时钟计算的秒数 last_seen_ago）
  * - null: 从未上报
  * - 数值: 不足 1 分钟 / N 分钟 / N 小时 / N 天

@@ -2,7 +2,7 @@
   "name": "Emerald 绿宝石",
   "short": "emerald",
   "description": "基于 Vue 3 + Tailwind CSS 构建的 Emerald 风格主题，支持 3D 地球与实时监控",
-  "version": "1.0.7",
+  "version": "1.0.8",
   "author": "binaryu / Tokinx",
   "url": "https://github.com/binaryu/monitor-theme-emerald",
   "config": [
@@ -167,14 +167,6 @@
       "min": -100,
       "max": 100,
       "help": "负数透明，0关闭，正数黑色遮罩"
-    },
-    { "type": "title", "label": "关于" },
-    {
-      "key": "themeAboutUrl",
-      "type": "string",
-      "label": "开源地址",
-      "default": "https://github.com/binaryu/monitor-theme-emerald",
-      "help": "Emerald 绿宝石主题源码仓库：https://github.com/binaryu/monitor-theme-emerald"
     }
   ]
 }
