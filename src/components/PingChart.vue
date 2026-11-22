@@ -873,7 +873,7 @@ onMounted(() => {
                 <div class="rounded h-4 w-1" :style="{ backgroundColor: task.color }" />
                 <span class="text-sm font-semibold truncate">{{ task.name }}</span>
                 <div class="flex-1" />
-                <DataTooltip placement="left" content-class="!rounded p-3 w-60 backdrop-blur">
+                <DataTooltip placement="left" touch-trigger="tap" content-class="!rounded p-3 w-60 backdrop-blur">
                   <Button variant="ghost" size="icon-xs" class="text-slate-500" @click.stop>
                     <Icon icon="carbon:information" :width="14" :height="14" />
                   </Button>
@@ -964,6 +964,7 @@ onMounted(() => {
             <DataTooltip
               content="使用 EWMA 算法平滑数据并过滤突变值"
               placement="top"
+              touch-trigger="tap"
               :content-class="pickSurfaceClass('whitespace-nowrap text-[11px]', 'whitespace-nowrap text-[11px] backdrop-blur-xl')"
             >
               <Button variant="ghost" size="icon-xs" class="text-slate-500">

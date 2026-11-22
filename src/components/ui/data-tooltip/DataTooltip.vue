@@ -4,12 +4,17 @@ import { computed, onBeforeUnmount, ref, useSlots, watch } from 'vue'
 import { cn } from '@/lib/utils'
 
 type DataTooltipPlacement = 'top' | 'bottom' | 'left' | 'right'
+type DataTooltipTouchTrigger = 'none' | 'tap'
 
 interface Props {
   /** 提示文本，留空且无 #content 插槽时不渲染气泡 */
   content?: string
   /** 气泡相对触发元素的方位 */
   placement?: DataTooltipPlacement
+  /** 禁用提示气泡与交互 */
+  disabled?: boolean
+  /** 触屏端交互方式：none 仅桌面悬停且穿透点击，tap 允许点击展开（用于独立信息按钮） */
+  touchTrigger?: DataTooltipTouchTrigger
   /** 气泡宽度，number 视为 px；默认由内容撑起 */
   width?: number | string
   /** 气泡高度，number 视为 px；默认由内容撑起 */
@@ -24,6 +29,8 @@ interface Props {
 
 const props = withDefaults(defineProps<Props>(), {
   placement: 'top',
+  disabled: false,
+  touchTrigger: 'none',
   as: 'div',
 })
 const slots = useSlots()
@@ -31,10 +38,9 @@ const slots = useSlots()
 const rootRef = ref<HTMLElement | null>(null)
 const isOpen = ref(false)
 const isHoverOpen = ref(false)
-let lastTouchOpenAt = 0
-let shouldStopNextClick = false
+let lastTouchPointerUpAt = 0
 
-const hasTooltip = computed(() => Boolean(props.content || slots.content))
+const hasTooltip = computed(() => !props.disabled && Boolean(props.content || slots.content))
 
 const placementClass: Record<DataTooltipPlacement, string> = {
   top: 'bottom-full left-1/2 mb-2 -translate-x-1/2',
@@ -87,24 +93,54 @@ function handleDocumentKeydown(event: KeyboardEvent) {
 }
 
 function handlePointerDown(event: PointerEvent) {
-  if (!hasTooltip.value || !isTouchLikePointer(event))
+  if (!isTouchLikePointer(event))
+    lastTouchPointerUpAt = 0
+}
+
+function handlePointerUp(event: PointerEvent) {
+  if (!hasTooltip.value || props.touchTrigger !== 'tap')
     return
 
-  lastTouchOpenAt = Date.now()
-  shouldStopNextClick = true
+  if (isTouchLikePointer(event))
+    lastTouchPointerUpAt = Date.now()
+  else
+    lastTouchPointerUpAt = 0
+}
+
+function handlePointerCancel() {
+  lastTouchPointerUpAt = 0
+}
+
+function handleClickCapture(event: MouseEvent) {
+  if (!hasTooltip.value || props.touchTrigger !== 'tap')
+    return
+
+  const isRecentTouchTap = lastTouchPointerUpAt > 0 && Date.now() - lastTouchPointerUpAt < 800
+  lastTouchPointerUpAt = 0
+
+  if (!isRecentTouchTap)
+    return
+
+  event.stopPropagation()
   isOpen.value = !isOpen.value
 }
 
-function handleClick(event: MouseEvent) {
-  if (shouldStopNextClick && Date.now() - lastTouchOpenAt < 800)
-    event.stopPropagation()
+function openHoverTooltip(event: PointerEvent) {
+  if (!hasTooltip.value || isTouchLikePointer(event))
+    return
 
-  shouldStopNextClick = false
+  isHoverOpen.value = true
 }
 
-function openHoverTooltip() {
-  if (hasTooltip.value)
-    isHoverOpen.value = true
+function openFocusTooltip(event: FocusEvent) {
+  if (!hasTooltip.value)
+    return
+
+  const target = event.target instanceof HTMLElement ? event.target : null
+  if (target && !target.matches(':focus-visible'))
+    return
+
+  isHoverOpen.value = true
 }
 
 function closeHoverTooltip() {
@@ -129,6 +165,11 @@ watch(hasTooltip, (value) => {
     closeTooltip()
 })
 
+watch(() => props.touchTrigger, (trigger) => {
+  if (trigger === 'none')
+    isOpen.value = false
+})
+
 onBeforeUnmount(removeDocumentListeners)
 </script>
 
@@ -140,19 +181,20 @@ onBeforeUnmount(removeDocumentListeners)
     :data-state="isOpen ? 'open' : 'closed'"
     :class="cn('group/data-tooltip relative inline-block', props.class)"
     @pointerdown.capture="handlePointerDown"
+    @pointerup.capture="handlePointerUp"
+    @pointercancel.capture="handlePointerCancel"
     @pointerenter="openHoverTooltip"
     @pointerleave="closeHoverTooltip"
-    @focusin="openHoverTooltip"
+    @focusin="openFocusTooltip"
     @focusout="closeHoverTooltip"
-    @click="handleClick"
+    @click.capture="handleClickCapture"
   >
     <slot />
     <span
       v-if="hasTooltip && (isOpen || isHoverOpen)"
       role="tooltip"
       :class="cn(
-        'pointer-events-none absolute z-20 hidden rounded bg-foreground/80 p-1 text-[10px] leading-none text-background shadow-lg group-hover/data-tooltip:block group-focus-within/data-tooltip:block whitespace-normal break-words',
-        isOpen && 'block',
+        'pointer-events-none absolute z-20 block rounded bg-foreground/80 p-1 text-[10px] leading-none text-background shadow-lg whitespace-normal break-words',
         placementClass[placement],
         props.contentClass,
       )"

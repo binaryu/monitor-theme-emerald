@@ -369,7 +369,7 @@ onMounted(async () => {
             />
           </div>
           <DataTooltip
-            as="span" placement="top"
+            as="span" placement="top" touch-trigger="tap"
             :content="`↑ ${formattedTrafficUp.value} ${formattedTrafficUp.unit}\n↓ ${formattedTrafficDown.value} ${formattedTrafficDown.unit}`"
             class="min-w-0" content-class="whitespace-pre px-2 py-1 left-0 -translate-x-0 leading-normal"
           >

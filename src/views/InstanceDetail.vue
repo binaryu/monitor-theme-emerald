@@ -196,11 +196,19 @@ const systemInfo = computed<InfoItem[]>(() => [
   { label: '最后上报', value: formatDateTime(data.value?.time), icon: 'icon-park-outline:time' },
 ])
 
-const storageInfo = computed<InfoItem[]>(() => [
-  { label: '内存', value: formatBytes(data.value?.mem_total ?? 0), icon: 'icon-park-outline:memory' },
-  { label: '内存交换', value: formatBytes(data.value?.swap_total ?? 0), icon: 'icon-park-outline:switch' },
-  { label: '硬盘', value: formatBytes(data.value?.disk_total ?? 0), icon: 'icon-park-outline:hard-disk' },
-])
+const storageInfo = computed<InfoItem[]>(() => {
+  const swapUsed = data.value?.swap ?? 0
+  const swapTotal = data.value?.swap_total ?? 0
+  const swapValue = swapTotal > 0 || swapUsed > 0
+    ? `${formatBytes(swapUsed)} / ${formatBytes(swapTotal)}`
+    : formatBytes(0)
+
+  return [
+    { label: '内存', value: formatBytes(data.value?.mem_total ?? 0), icon: 'icon-park-outline:memory' },
+    { label: '内存交换', value: swapValue, icon: 'icon-park-outline:switch' },
+    { label: '硬盘', value: formatBytes(data.value?.disk_total ?? 0), icon: 'icon-park-outline:hard-disk' },
+  ]
+})
 
 const trafficUsed = computed(() => {
   if (!data.value)

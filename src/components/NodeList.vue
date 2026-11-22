@@ -281,7 +281,7 @@ function getRowTransitionStyle(index: number): Record<string, string> {
 
               <!-- 内存 -->
               <div v-else-if="col.key === 'mem'" class="group">
-                <DataTooltip placement="top" class="block" :content-class="[!node.swap && '!hidden']">
+                <DataTooltip placement="top" class="block" :disabled="!node.swap">
                   <div class="space-y-1">
                     <div class="text-[10px] text-muted-foreground truncate">
                       <span class="inline group-hover:hidden">
